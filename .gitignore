@@ -1,0 +1,12 @@
+__pycache__/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+#notebook de pruebas
+pruebas.ipynb
+
+#memoria
+memoria.docx
