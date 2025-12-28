@@ -40,7 +40,7 @@ def crear_entorno(N:int = 6):
     for p in posiciones_random[3:]:
         palacio[p] = "P"
 
-    return palacio, pos_salida
+    return palacio, pos_soldado, pos_kurtz, pos_salida
 
 
 def render(palacio, pos_salida):
