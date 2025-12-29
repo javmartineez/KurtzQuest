@@ -19,9 +19,6 @@ class KnowledgeBase:
         cand = [(i-1,j),(i+1,j),(i,j-1),(i,j+1)]
         return [(x,y) for x,y in cand if 0 <= x < self.N and 0 <= y < self.N]
 
-    def _candidate_cells(self):
-        return [(i,j) for i in range(self.N) for j in range(self.N) if (i,j) not in self.visited]
-
     def consistent_worlds(self):
         # Devuelve generador de mundos consistentes:
         # world = (pits_set, soldier_pos or None)

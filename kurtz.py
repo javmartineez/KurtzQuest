@@ -352,12 +352,6 @@ def render_estado(console, mundo, estado, perceptos, mensaje=None):
     if mensaje:
         console.print(Panel(mensaje, border_style="yellow"))
 
-from rich.console import Console
-
-# asumo:
-# - from knowledge_base import KnowledgeBase
-# - from entorno import render_conocimiento
-# - inicializar_palacio(), percept(), funcion_transicion()
 
 def main():
     console = Console()
