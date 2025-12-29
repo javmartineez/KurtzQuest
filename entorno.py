@@ -45,10 +45,55 @@ def crear_entorno(N:int = 6):
     return palacio, pos_soldado, pos_kurtz, pos_salida
 
 
-def render(console, palacio, pos_salida, pos_agente, has_kurtz):
+# def render_trampas(console, palacio, pos_salida, pos_agente, has_kurtz):
+#     table = Table(show_header=False, box=None)
+
+#     N = palacio.shape[0]
+#     for _ in range(N):
+#         table.add_column(justify="center", width=6)
+
+#     for i in range(N):
+#         row = []
+#         for j in range(N):
+#             pos = (i, j)
+
+#             if pos == pos_agente:
+#                 estilo = "bold purple" if has_kurtz else "bold orange1"
+#                 cell = Text("CW", style=estilo)
+
+#             elif pos == pos_salida:
+#                 cell = Text("·", style="bold green")
+#             else:
+#                 v = palacio[pos]
+#                 cell = Text("·", style="dim") if v is None else Text(str(v))
+
+#             row.append(cell)
+
+#         table.add_row(*row)
+
+#     console.print(Align.center(Panel(table, title="Palacio", border_style="cyan", padding=(1,2))))
+
+
+def render(
+    console,
+    N: int,
+    pos_agente: tuple[int, int],
+    has_kurtz: bool,
+    visited: set[tuple[int, int]],
+    safe: set[tuple[int, int]],
+    possible_pits: set[tuple[int, int]],
+    possible_soldier: set[tuple[int, int]],
+    show_exit_if_known: bool = False,
+    exit_pos: tuple[int, int] | None = None,
+):
+    """
+    Render que NO hace trampas:
+    - NO enseña P, S, CK reales.
+    - Solo enseña: lo visitado, la posición del agente y marcas deducidas por KB.
+    - La salida solo se muestra si tú decides (p.ej. cuando esté 'conocida').
+    """
     table = Table(show_header=False, box=None)
 
-    N = palacio.shape[0]
     for _ in range(N):
         table.add_column(justify="center", width=6)
 
@@ -57,21 +102,58 @@ def render(console, palacio, pos_salida, pos_agente, has_kurtz):
         for j in range(N):
             pos = (i, j)
 
+            # Agente
             if pos == pos_agente:
                 estilo = "bold purple" if has_kurtz else "bold orange1"
                 cell = Text("CW", style=estilo)
 
-            elif pos == pos_salida:
+            # (opcional) salida si está conocida
+            elif show_exit_if_known and (exit_pos is not None) and pos == exit_pos:
                 cell = Text("·", style="bold green")
+
+            # Visitadas: ya “exploradas”
+            elif pos in visited:
+                cell = Text("·", style="white")
+
+            # Seguras deducidas (certeza KB ⊨ safe)
+            elif pos in safe:
+                cell = Text("✓", style="bold cyan")
+
+            # Posibles peligros (incertidumbre): ojo, pueden solaparse
             else:
-                v = palacio[pos]
-                cell = Text("·", style="dim") if v is None else Text(str(v))
+                is_p = pos in possible_pits
+                is_s = pos in possible_soldier
+
+                if is_p and is_s:
+                    cell = Text("?!", style="bold red")
+                elif is_p:
+                    cell = Text("P?", style="bold red")
+                elif is_s:
+                    cell = Text("S?", style="bold yellow")
+                else:
+                    cell = Text("·", style="dim")
 
             row.append(cell)
 
         table.add_row(*row)
 
-    console.print(Align.center(Panel(table, title="Palacio", border_style="cyan", padding=(1,2))))
+    legend = Text()
+    legend.append("Leyenda: ", style="bold")
+    legend.append("· desconocido  ", style="dim")
+    legend.append("· visitado  ", style="white")
+    legend.append("✓ seguro  ", style="bold cyan")
+    legend.append("P? posible precipicio  ", style="bold red")
+    legend.append("S? posible soldado  ", style="bold yellow")
+    legend.append("?! ambos posibles", style="bold red")
 
-
-
+    console.print(
+        Align.center(
+            Panel(
+                Align.center(table),
+                title="Palacio (conocimiento del agente)",
+                border_style="cyan",
+                padding=(1, 2),
+                subtitle=legend,
+            )
+        )
+    )
