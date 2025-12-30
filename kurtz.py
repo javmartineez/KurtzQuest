@@ -1,12 +1,13 @@
 import entorno
 from knowledge_base import KnowledgeBase
-import search_algorithms as search
 from rich.panel import Panel
 from rich.align import Align
 from rich.console import Console
 from rich.text import Text 
-import time
 import pyfiglet
+from collections import deque
+import time
+
 
 N = 6
 
@@ -23,7 +24,7 @@ def bienvenida(console: Console) -> str:
     opciones = (
         "[bold cyan]1.[/bold cyan] [bold]¿Cómo jugar?[/bold]  [dim]→ reglas y controles[/dim]\n"
         "[bold cyan]2.[/bold cyan] [bold]Modo de juego Manual[/bold]  [dim]→ tú eliges acciones[/dim]\n"
-        "[bold cyan]3.[/bold cyan] [bold]Modo por algoritmos[/bold]  [dim]→ BFS-DFS-Greedy-A*[/dim]\n"
+        "[bold cyan]3.[/bold cyan] [bold]Modo por algoritmos[/bold]  [dim]→ BFS[/dim]\n"
         "[bold cyan]4.[/bold cyan] [bold]Salir[/bold]"
     )
 
@@ -41,7 +42,7 @@ def bienvenida(console: Console) -> str:
         game_mode = input("Escoge un modo [1/2/3/4]: ").strip()
         if game_mode in {"1", "2", "3", "4"}:
             return game_mode
-        console.print("[bold red]Entrada inválida.[/bold red] Escribe 1, 2 o 3.")
+        console.print("[bold red]Entrada inválida.[/bold red] Escribe 1, 2, 3 o 4.")
 
 def instrucciones(console: Console):
     console.clear()
@@ -174,7 +175,7 @@ def inicializar_palacio(N: int = N):
 
     return console, mundo, estado_0
 
-def pantalla_game_over(console, texto: str, color: str):
+def pantalla_game_over(console: Console, texto: str, color: str):
     console.clear()
     fig = pyfiglet.Figlet(font="doom")
     ascii_art = fig.renderText(texto)
@@ -187,7 +188,7 @@ def pantalla_game_over(console, texto: str, color: str):
         )
     )
 
-def menu_post_partida(console) -> str:
+def menu_post_partida(console: Console) -> str:
     opciones = (
         "[bold cyan]1.[/bold cyan] Reintentar\n"
         "[bold green]2.[/bold green] Volver al menú principal\n"
@@ -257,11 +258,11 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
         if nuevo["soldado_vivo"] and target == pos_soldado:
             nuevo["soldado_vivo"] = False
             nuevo["ultima_accion_matar_soldado"] = True
-            return nuevo, {"killed_soldier": True, "message": "¡Soldado eliminado! Oyes un grito."}
+            return nuevo, {"killed_soldier": True, "message": "¡Soldado eliminado!"}
         
         # Si por error cae en Kurtz, no pasa nada
         if target == pos_kurtz:
-            return nuevo, {"grenade": True, "message": "Kurtz se cubre a tiempo. No sufre daño."}
+            return nuevo, {"grenade": True, "message": "Lanzaste la granada al Coronel Kurtz. Tranquilo, se cubrió a tiempo."}
 
         # Si cae en cualquier otra casilla, no pasa nada
         return nuevo, {"grenade": True, "message": "La granada explota sin efecto."}
@@ -276,7 +277,7 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
 
     nuevo["agent_pos"] = (ni, nj)
 
-        # recoger a Kurtz si llegas a su casilla
+    # recoger a Kurtz si llegas a su casilla
     if (not nuevo["has_kurtz"]) and (nuevo["agent_pos"] == pos_kurtz):
         nuevo["has_kurtz"] = True
         return nuevo, {"moved": True, "picked_kurtz": True, "message": "Has encontrado a Kurtz. Ahora vais juntos."}
@@ -364,7 +365,7 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
 
         print("Entrada inválida.")
 
-def percept(estado: dict, kb: KnowledgeBase, mundo: dict):
+def percept(estado: dict, kb: KnowledgeBase, mundo: dict) -> list[bool]:
     """
     Genera el percepto del Capitán Willard en el estado actual del entorno.
     A partir de la posición actual del agente, del mapa del palacio y del
@@ -404,7 +405,7 @@ def percept(estado: dict, kb: KnowledgeBase, mundo: dict):
 
     return perceptos
 
-def comprobar_paredes(pos, N):
+def comprobar_paredes(pos: tuple, N: int) -> tuple[bool]:
     """
     Determina la presencia de paredes alrededor de una posición dada.
     
@@ -432,6 +433,178 @@ def comprobar_paredes(pos, N):
 
     return pared_arriba, pared_abajo, pared_izq, pared_der
 
+class AgenteManual:
+    def decidir(self, estado, kb, seguras=None):
+        return escoger_accion(estado, kb)
+
+class AgenteBFS:
+    def __init__(self):
+        self.plan = []
+        self.history = []
+        self.failed_exits = set()
+
+    def decidir(self, estado, kb, seguras):
+        pos = estado["agent_pos"]
+        seguras = set(seguras)
+
+        # 0) Actualiza history (sin duplicar el último)
+        if not self.history or self.history[-1] != pos:
+            self.history.append(pos)
+
+        # 1) Si ya tienes plan pendiente, ejecútalo
+        if self.plan:
+            return self.plan.pop(0)
+
+        # 2) Si vas con Kurtz: PRIORIDAD salida.
+        #    Y SOLO haces EXIT si has_kurtz es True y estás en la salida.
+        if estado.get("has_kurtz", False):
+            exit_pos = kb.known_exit()
+            if exit_pos is not None and pos == exit_pos and pos not in self.failed_exits:
+                return "EXIT"
+            plan = self._bfs(pos, [exit_pos], kb, permitidas=set(kb.visited) | seguras)
+            if plan:
+                self.plan = plan
+                return self.plan.pop(0)
+            # Si la salida NO es conocida, seguimos explorando seguras (para deducirla)
+
+        # 3) Explorar: ir a una segura NO visitada (desde donde estás)
+        objetivos = [c for c in seguras if c not in kb.visited]
+        if objetivos:
+            plan = self._bfs(pos, objetivos, kb, permitidas=set(kb.visited) | seguras)
+            if plan:
+                self.plan = plan
+                return self.plan.pop(0)
+
+        # 4) Bloqueo: BACKTRACK.
+        #    Busca en el history el punto más reciente que tenga "frontera":
+        #    una celda con algún vecino seguro no visitado.
+        celda_backtracked = self.backtrack(kb)
+
+        if celda_backtracked is not None and celda_backtracked != pos:
+            plan = self._bfs(pos, [celda_backtracked], kb, permitidas=set(kb.visited) | seguras)
+            if plan:
+                self.plan = plan
+                return self.plan.pop(0)
+
+        # 5) Si ni siquiera hay celda_backtracked, retrocede un paso (al anterior de history)
+        if len(self.history) >= 2:
+            prev = self.history[-2]
+            plan = self._bfs(pos, [prev], kb, permitidas=set(kb.visited) | seguras)
+            if plan:
+                self.plan = plan
+                return self.plan.pop(0)
+
+        # Si llegas aquí, estás verdaderamente bloqueado con tu conocimiento actual.
+        # Devuelve EXIT solo si estás con Kurtz y en salida (ya cubierto arriba).
+        # En otro caso, devuelve una acción segura cualquiera si existe.
+        # (esto evita crashear; si no hay, levanta excepción)
+        for v in kb.neighbors(pos):
+            if v in seguras:
+                return self._accion(pos, v)
+
+        raise "BLOQUEO LÓGICO: No hay movimientos disponibles"
+
+    def backtrack(self, kb):
+        visited = set(kb.visited)
+        for cell in reversed(self.history):
+            for n in kb.neighbors(cell):
+                if (n not in visited) and kb.is_safe(n):
+                    return cell
+        return None
+
+
+    def _bfs(self, inicio, objetivos, kb, permitidas):
+        objetivos = set(objetivos)
+        permitidas = set(permitidas)
+
+        cola = deque([inicio])
+        padres = {inicio: None}
+
+        while cola:
+            actual = cola.popleft()
+
+            if actual in objetivos:
+                return self._reconstruir_plan(actual, padres)
+
+            for vecino in kb.neighbors(actual):
+                if vecino in permitidas and vecino not in padres:
+                    padres[vecino] = actual
+                    cola.append(vecino)
+
+        return []
+
+    def _reconstruir_plan(self, objetivo, padres):
+        camino = []
+        actual = objetivo
+
+        while padres[actual] is not None:
+            camino.append((padres[actual], actual))
+            actual = padres[actual]
+
+        camino.reverse()
+        return [self._accion(a, b) for a, b in camino]
+
+    def _accion(self, origen, destino):
+        oi, oj = origen
+        di, dj = destino
+
+        if di == oi - 1 and dj == oj:
+            return "UP"
+        if di == oi + 1 and dj == oj:
+            return "DOWN"
+        if di == oi and dj == oj - 1:
+            return "LEFT"
+        if di == oi and dj == oj + 1:
+            return "RIGHT"
+
+        raise ValueError("Movimiento no válido")
+
+def jugar_partida(console, agente):
+    console, mundo, estado = inicializar_palacio()
+    N = mundo["palacio"].shape[0]
+    kb = KnowledgeBase(N)
+
+    while True:
+        perceptos = percept(estado, kb, mundo)
+        kb.add_percept(estado["agent_pos"], perceptos)
+
+        pos = estado["agent_pos"]
+        vecinos = kb.neighbors(pos)
+        seguras = {v for v in vecinos if kb.is_safe(v)}
+        possible_pits, possible_soldier = kb.possible_pits_and_soldier()
+        exit_pos = kb.known_exit()
+
+        console.clear()
+        entorno.render(
+            console,
+            N=N,
+            pos_agente=pos,
+            has_kurtz=estado.get("has_kurtz", False),
+            visited=kb.visited,
+            safe=seguras,
+            possible_pits=possible_pits,
+            possible_soldier=possible_soldier,
+            show_exit_if_known=True,
+            exit_pos=exit_pos,
+        )
+
+        accion = agente.decidir(estado, kb, seguras)
+        estado, info = funcion_transicion(estado, mundo, accion)
+
+        if isinstance(agente, AgenteBFS):
+            time.sleep(0.3)
+
+
+        if info.get("message"):
+            console.print(f"[bold]{info['message']}[/bold]")
+
+        if info.get("dead") or info.get("win"):
+            return info
+        
+        if info.get("invalid_exit") and hasattr(agente, "failed_exits"):
+            agente.failed_exits.add(estado["agent_pos"])
+            agente.plan = []  # por si acaso
+
 def main():
     console = Console()
     game_mode = bienvenida(console)
@@ -444,71 +617,47 @@ def main():
             continue
 
         elif game_mode == "2":
-            console, mundo, estado = inicializar_palacio()
+            agente = AgenteManual()
+            info = jugar_partida(console, agente)
 
-            N = mundo["palacio"].shape[0]
-            kb = KnowledgeBase(N)
-
-            fin = None  # "dead" | "win"
-
-            while True:
-                perceptos = percept(estado, kb, mundo)
-                kb.add_percept(estado["agent_pos"], perceptos)
-
-                pos = estado["agent_pos"]
-                vecinos = kb.neighbors(pos)
-                seguras = {v for v in vecinos if kb.is_safe(v)}
-                possible_pits, possible_soldier = kb.possible_pits_and_soldier()
-                exit_pos = kb.known_exit()
-
-                console.clear()
-                entorno.render(
-                    console,
-                    N=N,
-                    pos_agente=pos,
-                    has_kurtz=estado.get("has_kurtz", False),
-                    visited=kb.visited,
-                    safe=seguras,
-                    possible_pits=possible_pits,
-                    possible_soldier=possible_soldier,
-                    show_exit_if_known=True,
-                    exit_pos=exit_pos,
-                )
-
-                accion = escoger_accion(estado, kb)
-                estado, info = funcion_transicion(estado, mundo, accion)
-
-                if info.get("message"):
-                    console.print(f"[bold]{info['message']}[/bold]")
-
-                if info.get("dead"):
-                    fin = "dead"
-                    break
-
-                if info.get("win"):
-                    fin = "win"
-                    break
-
-            # ---- AQUÍ está la UX que te faltaba ----
-            if fin == "dead":
+            if info.get("dead"):
                 pantalla_game_over(console, "HAS MUERTO", "red")
-            elif fin == "win":
+            elif info.get("win"):
                 pantalla_game_over(console, "VICTORIA", "green")
 
             time.sleep(1.5)
             opcion = menu_post_partida(console)
 
             if opcion == "1":
-                continue              # reintentar (vuelve a inicializar_palacio)
+                continue
             if opcion == "2":
-                game_mode = bienvenida(console)  # menú principal
+                game_mode = bienvenida(console)
                 continue
             if opcion == "3":
-                return 
-            
+                return
+
+        elif game_mode == "3":
+            agente = AgenteBFS()
+            info = jugar_partida(console, agente)
+
+            if info.get("dead"):
+                pantalla_game_over(console, "HAS MUERTO", "red")
+            elif info.get("win"):
+                pantalla_game_over(console, "VICTORIA", "green")
+
+            time.sleep(1.5)
+            opcion = menu_post_partida(console)
+
+            if opcion == "1":
+                continue
+            if opcion == "2":
+                game_mode = bienvenida(console)
+                continue
+            if opcion == "3":
+                return
+
         elif game_mode == "4":
             return
-
 
 
 if __name__ == "__main__":
