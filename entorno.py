@@ -3,6 +3,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.align import Align
 from rich.panel import Panel
+from rich.columns import Columns
 
 def crear_entorno(N:int = 6):
     """
@@ -44,6 +45,85 @@ def crear_entorno(N:int = 6):
 
     return palacio, pos_soldado, pos_kurtz, pos_salida
 
+def render(
+    console,
+    N: int,
+    pos_agente: tuple[int, int],
+    has_kurtz: bool,
+    visited: set[tuple[int, int]],
+    safe: set[tuple[int, int]],
+    possible_pits: set[tuple[int, int]],
+    possible_soldier: set[tuple[int, int]],
+    show_exit_if_known: bool = False,
+    exit_pos: tuple[int, int] | None = None,
+):
+    table = Table(show_header=False, box=None)
+    for _ in range(N):
+        table.add_column(justify="center", width=6)
+
+    for i in range(N):
+        row = []
+        for j in range(N):
+            pos = (i, j)
+
+            if pos == pos_agente:
+                estilo = "bold purple" if has_kurtz else "bold orange1"
+                cell = Text("CW", style=estilo)
+
+            elif show_exit_if_known and (exit_pos is not None) and pos == exit_pos:
+                cell = Text("•", style="bold green")
+
+            elif pos in visited:
+                cell = Text("•", style="bold blue")
+
+            elif pos in safe:
+                cell = Text("✓", style="bold cyan")
+
+            else:
+                is_p = pos in possible_pits
+                is_s = pos in possible_soldier
+                if is_p and is_s:
+                    cell = Text("?!", style="bold red")
+                elif is_p:
+                    cell = Text("P?", style="bold white")
+                elif is_s:
+                    cell = Text("S?", style="bold yellow")
+                else:
+                    cell = Text("·", style="dim")
+
+            row.append(cell)
+        table.add_row(*row)
+
+    # Panel del mapa: FIT (no ocupa toda la terminal)
+    map_panel = Panel.fit(
+        Align.center(table),
+        title="Palacio (conocimiento del agente)",
+        border_style="cyan",
+        padding=(1, 2),
+    )
+
+    # Panel de leyenda: FIT también
+    legend_text = Text.from_markup(
+        "[bold]Leyenda[/bold]\n\n"
+        "[blue]•[/blue] visitado\n"
+        "[bold cyan]✓[/bold cyan] seguro\n"
+        "[bold white]P?[/bold white] posible precipicio\n"
+        "[bold yellow]S?[/bold yellow] posible soldado\n"
+        "[bold red]?![/bold red] posible peligro\n"
+        "[bold green]•[/bold green] salida (si conocida)"
+    )
+    legend_panel = Panel.fit(
+        legend_text,
+        border_style="cyan",
+        padding=(1, 2),
+    )
+
+    console.print(
+        Align.center(
+            Columns([map_panel, legend_panel], expand=False, equal=False, padding=(0, 2))
+        )
+    )
+
 
 # def render_trampas(console, palacio, pos_salida, pos_agente, has_kurtz):
 #     table = Table(show_header=False, box=None)
@@ -74,86 +154,3 @@ def crear_entorno(N:int = 6):
 #     console.print(Align.center(Panel(table, title="Palacio", border_style="cyan", padding=(1,2))))
 
 
-def render(
-    console,
-    N: int,
-    pos_agente: tuple[int, int],
-    has_kurtz: bool,
-    visited: set[tuple[int, int]],
-    safe: set[tuple[int, int]],
-    possible_pits: set[tuple[int, int]],
-    possible_soldier: set[tuple[int, int]],
-    show_exit_if_known: bool = False,
-    exit_pos: tuple[int, int] | None = None,
-):
-    """
-    Render que NO hace trampas:
-    - NO enseña P, S, CK reales.
-    - Solo enseña: lo visitado, la posición del agente y marcas deducidas por KB.
-    - La salida solo se muestra si tú decides (p.ej. cuando esté 'conocida').
-    """
-    table = Table(show_header=False, box=None)
-
-    for _ in range(N):
-        table.add_column(justify="center", width=6)
-
-    for i in range(N):
-        row = []
-        for j in range(N):
-            pos = (i, j)
-
-            # Agente
-            if pos == pos_agente:
-                estilo = "bold purple" if has_kurtz else "bold orange1"
-                cell = Text("CW", style=estilo)
-
-            # (opcional) salida si está conocida
-            elif show_exit_if_known and (exit_pos is not None) and pos == exit_pos:
-                cell = Text("·", style="bold green")
-
-            # Visitadas: ya “exploradas”
-            elif pos in visited:
-                cell = Text("·", style="white")
-
-            # Seguras deducidas (certeza KB ⊨ safe)
-            elif pos in safe:
-                cell = Text("✓", style="bold cyan")
-
-            # Posibles peligros (incertidumbre): ojo, pueden solaparse
-            else:
-                is_p = pos in possible_pits
-                is_s = pos in possible_soldier
-
-                if is_p and is_s:
-                    cell = Text("?!", style="bold red")
-                elif is_p:
-                    cell = Text("P?", style="bold red")
-                elif is_s:
-                    cell = Text("S?", style="bold yellow")
-                else:
-                    cell = Text("·", style="dim")
-
-            row.append(cell)
-
-        table.add_row(*row)
-
-    legend = Text()
-    legend.append("Leyenda: ", style="bold")
-    legend.append("· desconocido  ", style="dim")
-    legend.append("· visitado  ", style="white")
-    legend.append("✓ seguro  ", style="bold cyan")
-    legend.append("P? posible precipicio  ", style="bold red")
-    legend.append("S? posible soldado  ", style="bold yellow")
-    legend.append("?! ambos posibles", style="bold red")
-
-    console.print(
-        Align.center(
-            Panel(
-                Align.center(table),
-                title="Palacio (conocimiento del agente)",
-                border_style="cyan",
-                padding=(1, 2),
-                subtitle=legend,
-            )
-        )
-    )

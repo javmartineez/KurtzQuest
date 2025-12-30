@@ -108,3 +108,75 @@ class KnowledgeBase:
             if s is not None:
                 poss_soldier.add(s)
         return poss_pits, poss_soldier
+    
+    def _neigh_plus_self(self, pos):
+        return set([pos]) | set(self.neighbors(pos))
+
+    def exit_candidates_from_glow(self):
+        """
+        Conjunto de celdas que podrían ser la salida SOLO por restricciones de resplandor.
+        """
+        all_cells = {(i, j) for i in range(self.N) for j in range(self.N)}
+        cand = set(all_cells)
+
+        for pos, (_b, _r, glow) in self.obs.items():
+            zone = self._neigh_plus_self(pos)
+            if glow:
+                cand &= zone
+            else:
+                cand -= zone
+
+        return cand
+
+    def possible_exits(self):
+        """
+        Unión de salidas posibles considerando:
+        - restricciones de resplandor
+        - y que salida no puede coincidir con pits ni soldado (si vive)
+        """
+        glow_cand = self.exit_candidates_from_glow()
+        poss = set()
+
+        for pits, s in self.consistent_worlds():
+            exits = set(glow_cand) - set(pits)
+            if s is not None:
+                exits.discard(s)
+
+            if exits:
+                poss |= exits
+
+        return poss
+
+    def entails_exit(self, cell):
+        """
+        True si en TODOS los mundos consistentes (pits/soldado) la salida es EXACTAMENTE 'cell'.
+        """
+        glow_cand = self.exit_candidates_from_glow()
+        found_model = False
+
+        for pits, s in self.consistent_worlds():
+            exits = set(glow_cand) - set(pits)
+            if s is not None:
+                exits.discard(s)
+
+            if not exits:
+                # este (pits,s) no se puede completar con ninguna salida, ignóralo
+                continue
+
+            found_model = True
+
+            # si hay algún mundo donde la salida podría NO ser cell, no está implicado
+            if cell not in exits or len(exits) != 1:
+                return False
+
+        return found_model
+
+    def known_exit(self):
+        """
+        Devuelve la celda de salida si la KB la ha deducido con certeza; si no, None.
+        """
+        poss = self.possible_exits()
+        if len(poss) == 1:
+            return next(iter(poss))
+        return None
+

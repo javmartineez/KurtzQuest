@@ -1,33 +1,116 @@
 import entorno
 from knowledge_base import KnowledgeBase
+import search_algorithms as search
 from rich.panel import Panel
 from rich.align import Align
 from rich.console import Console
 from rich.text import Text 
 import time
+import pyfiglet
 
 N = 6
 
-def bienvenida(console: Console):
-    """
-    Función de bienvenida. Proporciona instrucciones al usuario 
-    haciendo uso de la librería Rich 
-        Args: 
-        - console (Console): objeto de consola de Rich utilizado para la
-                             visualización de los distintos paneles y elementos.
-    """
-
+def bienvenida(console: Console) -> str:
     console.clear()
-    titulo = Align.center("[bold cyan]BUSCANDO AL CORONEL KURTZ[/bold cyan]")
-    console.print(Panel(titulo, border_style="cyan"))
 
-    console.print("\n[bold]Instrucciones rápidas[/bold]")
-    console.print("• Te mueves por el palacio mediante W/A/S/D, buscando a [bold magenta]CK[/bold magenta] (Coronel Kurtz).")
-    console.print("• Evita [bold yellow]P[/bold yellow] (precipicios) y [bold red]S[/bold red] (soldado enemigo).")
-    console.print("• Encuentra la [bold green]E[/bold green] (salida) tras localizar a Kurtz.\n")
+    figlet = pyfiglet.Figlet(font="slant")
+    titulo_ascii = figlet.renderText("BUSCANDO \nAL\nCORONEL KURTZ")
 
-    input("Pulsa ENTER para comenzar...")
+    titulo = Text(titulo_ascii, style="bold cyan", justify="center")
+    console.print(Panel(Align.center(titulo), border_style="cyan", padding=(1, 4)))
 
+    # Panel de opciones (lo que quieres)
+    opciones = (
+        "[bold cyan]1.[/bold cyan] [bold]¿Cómo jugar?[/bold]  [dim]→ reglas y controles[/dim]\n"
+        "[bold cyan]2.[/bold cyan] [bold]Modo de juego Manual[/bold]  [dim]→ tú eliges acciones[/dim]\n"
+        "[bold cyan]3.[/bold cyan] [bold]Modo por algoritmos[/bold]  [dim]→ BFS-DFS-Greedy-A*[/dim]\n"
+        "[bold cyan]4.[/bold cyan] [bold]Salir[/bold]"
+    )
+
+    console.print(
+        Panel(
+            Align.left(Text.from_markup(opciones)),
+            title="[bold]Menú principal[/bold]",
+            title_align="left",
+            border_style="cyan",
+            padding=(1, 4),
+        )
+    )
+
+    while True:
+        game_mode = input("Escoge un modo [1/2/3/4]: ").strip()
+        if game_mode in {"1", "2", "3", "4"}:
+            return game_mode
+        console.print("[bold red]Entrada inválida.[/bold red] Escribe 1, 2 o 3.")
+
+def instrucciones(console: Console):
+    console.clear()
+
+    titulo1 = Text("INSTRUCCIONES DE LA MISIÓN", style="bold cyan", justify="center")
+    titulo2 = Text("CONTROLES", style="bold cyan", justify="center")
+
+    narrativa = (
+        "Tu misión es clara y no admite errores.\n"
+        "Debes adentrarte en el palacio y encontrar al [bold magenta]Coronel Kurtz (CK)[/bold magenta], "
+        "cuya ubicación es completamente desconocida. Una vez lo encuentres, deberéis "
+        "[bold]salir juntos y con vida[/bold] del palacio.\n\n"
+        "Cuando localices al coronel, lo sabrás de inmediato: tu figura, el "
+        "[bold orange1]Capitán Willard (CW)[/bold orange1], pasará a mostrarse en [bold magenta]morado[/bold magenta], "
+        "indicando que ya no caminas solo.\n\n"
+        "Pero mantente alerta.\n"
+        "El palacio está en ruinas y plagado de peligros. Algunas habitaciones esconden "
+        "[bold red]precipicios[/bold red] mortales dado el mal estado del palacio. "
+        "Otras pueden albergar a un [bold yellow]soldado enemigo[/bold yellow] que acabará contigo.\n\n"
+        "Dispones de una única [bold]granada[/bold]. Úsala con cabeza: solo puede lanzarse "
+        "a una habitación contigua (arriba, abajo, izquierda o derecha). Un error y estarás indefenso.\n\n"
+        "Las habitaciones por las que ya hayas pasado quedarán marcadas en "
+        "[bold blue]azul[/bold blue], para que nunca pierdas la noción de tu recorrido. "
+        "La [bold green]salida[/bold green] del palacio se distingue claramente de color verde pero recuerda:"
+        "Si intentas salir sin el coronel, habrás fracasado.\n"
+        "Respira hondo. Observa. Deduce.\n"
+        "[bold]Buena suerte, soldado.[/bold]"
+    )
+
+    controles = (
+        "Utiliza [bold cyan]W/A/S/D[/bold cyan] para moverte arriba/izquierda/abajo/derecha respectivamente.\n"
+        "Utiliza [bold cyan]G[/bold cyan] para lanzar la granada. Tras lanzarla, deberás especificar"
+        "en qué direccion mediante W/A/S/D\n"
+        "Tras encontrar la [bold green]salida[/bold green], utiliza la [bold cyan]E[/bold cyan] para salir"
+    )
+
+    console.print(
+        Panel(
+            Align.center(titulo1),
+            border_style="cyan",
+            padding=(1, 4),
+        )
+    )
+
+    console.print(
+        Panel(
+            Text.from_markup(narrativa),
+            border_style="cyan",
+            padding=(1, 4),
+        )
+    )
+
+    console.print(
+        Panel(
+            Align.center(titulo2),
+            border_style="cyan",
+            padding=(1, 4),
+        )
+    )
+
+    console.print(
+        Panel(
+            Text.from_markup(controles),
+            border_style="cyan",
+            padding=(1, 4),
+        )
+    )
+
+    input("\nPulsa ENTER para volver al menú...")
 
 def pantalla_carga(console: Console, segundos: float = 1.0):
     """
@@ -41,7 +124,6 @@ def pantalla_carga(console: Console, segundos: float = 1.0):
     console.clear()
     with console.status("[bold]Preparando el palacio...[/bold]", spinner="dots"):
         time.sleep(segundos)
-
 
 def inicializar_palacio(N: int = N):
     """
@@ -69,7 +151,6 @@ def inicializar_palacio(N: int = N):
     """
 
     console = Console()
-    bienvenida(console)
     pantalla_carga(console)
 
     # Ideal: que esto devuelva un world dict/dataclass
@@ -92,6 +173,41 @@ def inicializar_palacio(N: int = N):
     }
 
     return console, mundo, estado_0
+
+def pantalla_game_over(console, texto: str, color: str):
+    console.clear()
+    fig = pyfiglet.Figlet(font="doom")
+    ascii_art = fig.renderText(texto)
+
+    console.print(
+        Panel(
+            Align.center(Text(ascii_art, style=f"bold {color}")),
+            border_style=color,
+            padding=(1, 4),
+        )
+    )
+
+def menu_post_partida(console) -> str:
+    opciones = (
+        "[bold cyan]1.[/bold cyan] Reintentar\n"
+        "[bold green]2.[/bold green] Volver al menú principal\n"
+        "[bold red]3.[/bold red] Salir"
+    )
+    console.print(
+        Panel(
+            Align.left(Text.from_markup(opciones)),
+            title="[bold]¿Qué quieres hacer ahora?[/bold]",
+            title_align="left",
+            border_style="cyan",
+            padding=(1, 4),
+        )
+    )
+
+    while True:
+        x = input("Elige [1/2/3]: ").strip()
+        if x in {"1", "2", "3"}:
+            return x
+        console.print("[bold red]Entrada inválida.[/bold red] Escribe 1, 2 o 3.")
 
 def funcion_transicion(estado: dict, mundo: dict, accion: str):
     palacio = mundo["palacio"]
@@ -177,7 +293,6 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
 
     return nuevo, {"moved": True}
 
-
 def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
     """
     El usuario elige la acción, pero SOLO se permiten movimientos hacia celdas seguras
@@ -193,7 +308,7 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
     seguras = {v for v in vecinos if kb.is_safe(v)}
     visitadas = kb.visited
 
-    permitidas = seguras | (set(vecinos) & visitadas)
+    aconsejadas = seguras | (set(vecinos) & visitadas)
 
     # Mapa: tecla -> destino
     tecla_a_destino = {}
@@ -203,13 +318,10 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
         if dest in vecinos:  # está dentro del tablero
             tecla_a_destino[k] = dest
 
-    teclas_mov_ok = [k for k, dest in tecla_a_destino.items() if dest in permitidas]
+    teclas_mov_ok = list(tecla_a_destino.keys())
 
-    print("\nAcciones: W/A/S/D mover (solo seguras) | E salir | G granada")
-    print(f"Posición: {pos}")
-    print(f"Vecinos: {vecinos}")
-    print(f"Seguras (KB): {sorted(seguras)}")
-    print(f"Movimientos permitidos: {[ (k, tecla_a_destino[k]) for k in teclas_mov_ok ]}")
+    print("\nAcciones: W/A/S/D mover | E salir | G granada")
+    print(f"Habitaciones seguras: {sorted(seguras)}")
 
     # Si no hay movimientos permitidos, lo digo claro (esto puede pasar)
     if not teclas_mov_ok:
@@ -222,13 +334,25 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
         # mover (solo si está permitido)
         if t in mapa_mov:
             if t not in teclas_mov_ok:
-                print("Movimiento NO permitido: la KB no lo considera seguro (o no está visitado).")
+                print("Movimiento NO permitido")
                 continue
             return mapa_mov[t]
 
         # salir (sin filtro de seguridad)
+        # salir: solo lo permito si la KB lo puede probar (o al menos si exit_pos coincide)
         if t == "E":
+            exit_pos = kb.known_exit()
+            if not estado.get("has_kurtz", False):
+                print("No puedes salir: todavía no has encontrado a Kurtz.")
+                continue
+            if exit_pos is None:
+                print("No puedes salir: la KB aún no ha deducido la salida.")
+                continue
+            if estado["agent_pos"] != exit_pos:
+                print("No puedes salir: no estás en la salida")
+                continue
             return "EXIT"
+
 
         # granada (sin filtro de seguridad)
         if t == "G":
@@ -239,8 +363,6 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
             continue
 
         print("Entrada inválida.")
-
-
 
 def percept(estado: dict, kb: KnowledgeBase, mundo: dict):
     """
@@ -282,7 +404,6 @@ def percept(estado: dict, kb: KnowledgeBase, mundo: dict):
 
     return perceptos
 
-
 def comprobar_paredes(pos, N):
     """
     Determina la presencia de paredes alrededor de una posición dada.
@@ -311,103 +432,82 @@ def comprobar_paredes(pos, N):
 
     return pared_arriba, pared_abajo, pared_izq, pared_der
 
-
-def render_estado(console, mundo, estado, perceptos, mensaje=None):
-    """
-    Renderiza el estado actual del juego y los perceptos del agente.
-    Limpia la consola, dibuja el mapa del palacio con la posición
-    actual del Capitán Willard, muestra un panel con los perceptos percibidos
-    en el estado actual e informa sobre el estado relevante del agente
-    (disponibilidad de granada y estado del soldado enemigo).
-    
-    Args:
-        - console (Console)
-        - mundo (dict)
-        - estado (dict)
-        - perceptos (list[bool])
-        - mensaje (str, optional): Mensaje informativo del turno a mostrar
-          por pantalla. Por defecto es None.
-    """
-
-    console.clear()
-
-    # Dibuja el tablero con tu render
-    entorno.render(console, mundo["palacio"], mundo["pos_salida"], estado["agent_pos"], estado["has_kurtz"])
-
-    # Panel de perceptos
-    nombres = ["Brisa","Ronquido","Resplandor","Pared↑","Pared↓","Pared←","Pared→","Grito"]
-    t = Text()
-    for n, v in zip(nombres, perceptos):
-        t.append(f"{n}: {'Sí' if v else 'No'}\n")
-
-    console.print(Panel(t, title="Perceptos", border_style="cyan"))
-
-    # Estado útil
-    console.print(
-        f"[bold]Granada:[/bold] {'Sí' if estado['granada'] else 'No'}   "
-        f"[bold]Soldado vivo:[/bold] {'Sí' if estado['soldado_vivo'] else 'No'}"
-    )
-
-    # Mensaje del turno (si existe)
-    if mensaje:
-        console.print(Panel(mensaje, border_style="yellow"))
-
-
 def main():
     console = Console()
+    game_mode = bienvenida(console)
 
-    console, mundo, estado = inicializar_palacio()
-
-    N = mundo["palacio"].shape[0]  # 6
-    kb= KnowledgeBase(N)
-
-    # bucle principal
     while True:
-        # 1) perceptos del mundo real (SOLO aquí se usa mundo real)
-        perceptos = percept(estado, kb, mundo)
 
-        # 2) actualizar KB (razonamiento parte de aquí)
-        kb.add_percept(estado["agent_pos"], perceptos)
+        if game_mode == "1":
+            instrucciones(console)
+            game_mode = bienvenida(console)
+            continue
 
-        # 3) deducciones para UI y recomendaciones
-        pos = estado["agent_pos"]
-        vecinos = kb.neighbors(pos)
+        elif game_mode == "2":
+            console, mundo, estado = inicializar_palacio()
 
-        seguras = {v for v in vecinos if kb.is_safe(v)}
-        possible_pits, possible_soldier = kb.possible_pits_and_soldier()
+            N = mundo["palacio"].shape[0]
+            kb = KnowledgeBase(N)
 
-        # 4) render LEGAL (sin revelar P/S/CK reales)
-        entorno.render(
-            console=console,
-            N=N,
-            pos_agente=pos,
-            has_kurtz=estado.get("has_kurtz", False),
-            visited=kb.visited,
-            safe=seguras,
-            possible_pits=possible_pits,
-            possible_soldier=possible_soldier,
-            show_exit_if_known=False,
-            exit_pos=None,
-        )
+            fin = None  # "dead" | "win"
 
-        # 5) elegir acción: tú mandas, KB aconseja
-        accion = escoger_accion(estado, kb)
+            while True:
+                perceptos = percept(estado, kb, mundo)
+                kb.add_percept(estado["agent_pos"], perceptos)
 
-        # 6) transición del mundo real
-        estado, info = funcion_transicion(estado, mundo, accion)
+                pos = estado["agent_pos"]
+                vecinos = kb.neighbors(pos)
+                seguras = {v for v in vecinos if kb.is_safe(v)}
+                possible_pits, possible_soldier = kb.possible_pits_and_soldier()
+                exit_pos = kb.known_exit()
 
-        # 7) mensajes post-acción (opcionales)
-        if info.get("message"):
-            console.print(f"[bold]{info['message']}[/bold]")
+                console.clear()
+                entorno.render(
+                    console,
+                    N=N,
+                    pos_agente=pos,
+                    has_kurtz=estado.get("has_kurtz", False),
+                    visited=kb.visited,
+                    safe=seguras,
+                    possible_pits=possible_pits,
+                    possible_soldier=possible_soldier,
+                    show_exit_if_known=True,
+                    exit_pos=exit_pos,
+                )
 
-        if info.get("dead"):
-            console.print("[bold red]Has muerto.[/bold red]")
-            break
+                accion = escoger_accion(estado, kb)
+                estado, info = funcion_transicion(estado, mundo, accion)
 
-        if info.get("win"):
-            console.print("[bold green]Has ganado.[/bold green]")
-            break
+                if info.get("message"):
+                    console.print(f"[bold]{info['message']}[/bold]")
 
+                if info.get("dead"):
+                    fin = "dead"
+                    break
+
+                if info.get("win"):
+                    fin = "win"
+                    break
+
+            # ---- AQUÍ está la UX que te faltaba ----
+            if fin == "dead":
+                pantalla_game_over(console, "HAS MUERTO", "red")
+            elif fin == "win":
+                pantalla_game_over(console, "VICTORIA", "green")
+
+            time.sleep(1.5)
+            opcion = menu_post_partida(console)
+
+            if opcion == "1":
+                continue              # reintentar (vuelve a inicializar_palacio)
+            if opcion == "2":
+                game_mode = bienvenida(console)  # menú principal
+                continue
+            if opcion == "3":
+                return 
+            
+        elif game_mode == "4":
+            return
 
 
 
