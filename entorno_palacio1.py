@@ -5,21 +5,25 @@ from rich.align import Align
 from rich.panel import Panel
 from rich.columns import Columns
 
-def crear_entorno(N:int = 6):
+def crear_entorno(N: int = 6):
     """
-    Función encargada de crear la matriz Numpy que servirá 
-    como tablero de juego. La posicion de las trampas y el 
-    soldado enemigo se genera aleatoriamente cada vez que 
-    reinicia el juego. 
+    Genera de forma aleatoria el entorno inicial del palacio, incluyendo
+    la disposición del tablero y la ubicación de los elementos clave del juego.
+    La celda inicial (0,0) se reserva siempre como posición segura de inicio.
 
-    Args: 
-        - N(int): valor de dimensiones del tablero establecido 
-                a 6x6 como valor predeterminado. 
+    Args:
+        - N (int): dimensión del palacio (N x N). Por defecto, 6.
 
-    Returns: 
-        - palacio(np.array): matriz-tablero con los distintos elementos 
-                             calculados e incluidos en sus posiciones
-                             correspondientes.
+    Returns:
+        - palacio (np.ndarray): matriz que representa el tablero del juego,
+          donde cada celda puede contener:
+          - None (celda vacía),
+          - "P" (precipicio),
+          - "S" (soldado enemigo),
+          - "CK" (Coronel Kurtz).
+        - pos_soldado (tuple[int, int]): posición del soldado enemigo.
+        - pos_kurtz (tuple[int, int]): posición del Coronel Kurtz.
+        - pos_salida (tuple[int, int]): posición de la salida del palacio.
     """
 
     NUM_TRAMPAS = 3
@@ -57,6 +61,25 @@ def render(
     show_exit_if_known: bool = False,
     exit_pos: tuple[int, int] | None = None,
 ):
+    """
+    Renderiza en consola el mapa del palacio desde la perspectiva del conocimiento
+    actual del agente, mostrando su posición, las celdas visitadas, las celdas
+    seguras y las posibles amenazas sacadas a paritr de la KB.
+
+    Args:
+        - console (Console): consola Rich utilizada para renderizar la interfaz.
+        - N (int): tamaño del palacio (N x N).
+        - pos_agente (tuple[int, int]): posición actual del Capitán Willard.
+        - has_kurtz (bool): indica si el agente ya ha encontrado al Coronel Kurtz.
+        - visited (set[tuple[int, int]]): conjunto de celdas ya visitadas por el agente.
+        - safe (set[tuple[int, int]]): conjunto de celdas deducidas como seguras.
+        - possible_pits (set[tuple[int, int]]): celdas que podrían contener un precipicio.
+        - possible_soldier (set[tuple[int, int]]): celdas que podrían contener al soldado enemigo.
+        - show_exit_if_known (bool): indica si debe mostrarse la salida cuando su posición
+          ha sido deducida con certeza.
+        - exit_pos (tuple[int, int] | None): posición de la salida si es conocida; None en caso contrario.
+    """
+
     table = Table(show_header=False, box=None)
     for _ in range(N):
         table.add_column(justify="center", width=6)
@@ -110,7 +133,8 @@ def render(
         "[bold white]P?[/bold white] posible precipicio\n"
         "[bold yellow]S?[/bold yellow] posible soldado\n"
         "[bold red]?![/bold red] posible peligro\n"
-        "[bold green]•[/bold green] salida (si conocida)"
+        "[bold green]•[/bold green] salida (si conocida)\n"
+        "[bold purple]CW[/bold purple] CK encontrado"
     )
     legend_panel = Panel.fit(
         legend_text,
@@ -123,34 +147,3 @@ def render(
             Columns([map_panel, legend_panel], expand=False, equal=False, padding=(0, 2))
         )
     )
-
-
-# def render_trampas(console, palacio, pos_salida, pos_agente, has_kurtz):
-#     table = Table(show_header=False, box=None)
-
-#     N = palacio.shape[0]
-#     for _ in range(N):
-#         table.add_column(justify="center", width=6)
-
-#     for i in range(N):
-#         row = []
-#         for j in range(N):
-#             pos = (i, j)
-
-#             if pos == pos_agente:
-#                 estilo = "bold purple" if has_kurtz else "bold orange1"
-#                 cell = Text("CW", style=estilo)
-
-#             elif pos == pos_salida:
-#                 cell = Text("·", style="bold green")
-#             else:
-#                 v = palacio[pos]
-#                 cell = Text("·", style="dim") if v is None else Text(str(v))
-
-#             row.append(cell)
-
-#         table.add_row(*row)
-
-#     console.print(Align.center(Panel(table, title="Palacio", border_style="cyan", padding=(1,2))))
-
-
