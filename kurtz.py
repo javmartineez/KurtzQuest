@@ -13,7 +13,7 @@ N = 6
 
 def bienvenida(console: Console) -> str:
     """
-    Muestra el menú principal del juego y solicita al usuario el modo de juego.
+    Muestra el menú principal y solicita al usuario el modo de juego.
 
     Args:
         - console (Console): consola Rich utilizada para mostrar la interfaz.
@@ -25,9 +25,9 @@ def bienvenida(console: Console) -> str:
     console.clear()
 
     figlet = pyfiglet.Figlet(font="slant")
-    titulo_ascii = figlet.renderText("BUSCANDO \nAL\nCORONEL KURTZ")
+    titulo = figlet.renderText("BUSCANDO \nAL\nCORONEL KURTZ")
 
-    titulo = Text(titulo_ascii, style="bold cyan", justify="center")
+    titulo = Text(titulo, style="bold cyan", justify="center")
     console.print(Panel(Align.center(titulo), border_style="cyan", padding=(1, 4)))
 
     #Panel de opciones de juego
@@ -69,7 +69,7 @@ def instrucciones(console: Console) -> None:
     titulo1 = Text("INSTRUCCIONES DE LA MISIÓN", style="bold cyan", justify="center")
     titulo2 = Text("CONTROLES", style="bold cyan", justify="center")
 
-    narrativa = (
+    instrucciones = (
         "Tu misión es clara y no admite errores.\n"
         "Debes adentrarte en el palacio y encontrar al [bold magenta]Coronel Kurtz (CK)[/bold magenta], "
         "cuya ubicación es completamente desconocida. Una vez lo encuentres, deberéis "
@@ -107,7 +107,7 @@ def instrucciones(console: Console) -> None:
 
     console.print(
         Panel(
-            Text.from_markup(narrativa),
+            Text.from_markup(instrucciones),
             border_style="cyan",
             padding=(1, 4),
         )
@@ -146,11 +146,7 @@ def pantalla_carga(console: Console, segundos: float = 1.0) -> None:
 
 def inicializar_palacio(console: Console, N: int = N) -> tuple[dict, dict]:
     """
-    Inicializa el entorno completo del palacio y el estado inicial del agente.
-    La función se encarga de mostrar la bienvenida y la pantalla de carga,
-    generar de forma aleatoria el mapa del palacio junto con la posición
-    de sus elementos clave (soldado, Coronel Kurtz y salida) e inicializar
-    el estado del Capitán Willard.
+    Inicializa el entorno del palacio y el estado inicial del agente.
     
     Args:
         - console (Console): consola Rich utilizada para mostrar la interfaz.
@@ -201,8 +197,8 @@ def pantalla_game_over(console: Console, texto: str, color: str) -> None:
     """
 
     console.clear()
-    fig = pyfiglet.Figlet(font="doom")
-    ascii_art = fig.renderText(texto)
+    figlet = pyfiglet.Figlet(font="doom")
+    ascii_art = figlet.renderText(texto)
 
     console.print(
         Panel(
@@ -298,13 +294,13 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
         if not (0 <= target[0] < N and 0 <= target[1] < N):
             return estado_next, {"granada": True, "pared": True, "message": "Has lanzado la granada fuera del palacio"}
 
-        # Si se lanza al soldado y este está vivo
+        # Si se lanza al soldado y está vivo
         if estado_next["soldado_vivo"] and target == pos_soldado:
             estado_next["soldado_vivo"] = False
             estado_next["ultima_accion_matar_soldado"] = True
             return estado_next, {"killed_soldier": True, "message": "¡Soldado eliminado!"}
         
-        # Si por error cae en Kurtz, no pasa nada
+        # Si cae en Kurtz, no pasa nada
         if target == pos_kurtz:
             return estado_next, {"granada": True, "message": "Has lanzado la granada al Coronel Kurtz. Tranquilo, se cubrió a tiempo."}
 
@@ -342,8 +338,7 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
 def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
     """
     Solicita al usuario una acción a partir del estado actual del juego.
-    La función muestra información deducida por la base de conocimiento,
-    pero permite al usuario elegir libremente cualquier acción.
+    La función muestra información deducida por la base de conocimiento.
 
     Args:
         - estado (dict): estado actual del agente (posición, inventario y flags).
@@ -388,8 +383,6 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
                 continue
             return mapa_mov[t]
 
-        # salir (sin filtro de seguridad)
-        # salir: solo lo permito si la KB lo puede probar (o al menos si exit_pos coincide)
         if t == "E":
             exit_pos = kb.known_exit()
             if not estado.get("has_kurtz", False):
@@ -403,7 +396,6 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
                 continue
             return "EXIT"
 
-        # granada (sin filtro de seguridad)
         if t == "G":
             dir_key = input("Dirección granada (W/A/S/D): ").strip().upper()
             if dir_key in mapa_mov:
@@ -415,17 +407,16 @@ def escoger_accion(estado: dict, kb: KnowledgeBase) -> str:
         
 def percept(estado: dict, kb: KnowledgeBase, mundo: dict) -> list[bool]:
     """
-    Genera el percepto del Capitán Willard en el estado actual del entorno.
-    A partir de la posición actual del agente, del mapa del palacio y del
-    estado del mundo, la función calcula los perceptos disponibles
-    para el agente: presencia de brisa, ronquido, resplandor, contacto con
-    paredes y percepción de un grito tras eliminar al soldado enemigo.
+    Calcula los perceptos disponibles para el agente: presencia de brisa, 
+    ronquido, resplandor, contacto con paredes y percepción de un grito 
+    tras eliminar al soldado enemigo.
     
     Args:
         - estado (dict): Diccionario que representa el estado actual del
                          agente.
         - mundo (dict): Diccionario que representa el estado objetivo del
                         mundo.
+        - kb (KnowledgeBase): base de conocimiento del agente
     
     Returns:
         - perceptos (list[bool]): Lista de valores booleanos que representa
@@ -628,7 +619,7 @@ class AgenteBFS:
     def bfs(self, inicio, objetivos, kb: KnowledgeBase, permitidas: set):
         """
         Realiza una búsqueda en anchura desde una celda inicial hasta
-        cualquiera de los objetivos permitidos.
+        los objetivos.
 
         Args:
             - inicio (tuple[int, int]): posición inicial.

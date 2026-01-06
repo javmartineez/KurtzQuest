@@ -7,16 +7,33 @@ from rich.panel import Panel
 from rich.columns import Columns
 
 def crear_entorno(N: int = 6):
+    """
+    Genera el tablero del palacio (N x N) asignando aleatoriamente los elementos del entorno.
+    En esta versión las trampas (F, P, D) pueden coincidir en la misma celda, y el resto de
+    elementos (M, S, CK) se colocan en celdas sin trampas, pudiendo también coincidir entre ellos.
 
-    # Cada celda guarda un conjunto de elementos (permite solapamientos)
+    Args:
+        - N (int): dimensión del palacio (N x N).
+
+    Returns:
+        - palacio (np.ndarray): matriz de tamaño N x N donde cada celda contiene un set con
+          los elementos presentes en esa posición.
+        - pos_F (tuple[int, int]): posición de la trampa F.
+        - pos_P (tuple[int, int]): posición de la trampa P.
+        - pos_D (tuple[int, int]): posición de la trampa D.
+        - pos_M (tuple[int, int]): posición del elemento M.
+        - pos_S (tuple[int, int]): posición del soldado S.
+        - pos_CK (tuple[int, int]): posición del Coronel Kurtz (CK).
+    """
+
+    # En esta version se permiten dos peligros en una misma celda
     palacio = np.empty((N, N), dtype=object)
     for i in range(N):
         for j in range(N):
             palacio[i, j] = set()
 
-    indices_posibles = np.arange(1, N * N)  # excluye (0,0)
+    indices_posibles = np.arange(1, N * N)  # se excluye (0,0)
 
-    # Trampas: pueden solaparse
     indices_trampas = np.random.choice(indices_posibles, size=3, replace=True)
     posiciones_trampas = [(i // N, i % N) for i in indices_trampas]
 
@@ -29,10 +46,7 @@ def crear_entorno(N: int = 6):
     palacio[pos_D].add("D")
 
     # Resto (M, S, CK): en celdas SIN trampas (pero pueden coincidir entre sí)
-    indices_posibles_resto = [
-        i for i in indices_posibles
-        if len(palacio[i // N, i % N] & {"F", "P", "D"}) == 0
-    ]
+    indices_posibles_resto = [i for i in indices_posibles if len(palacio[i // N, i % N] & {"F", "P", "D"}) == 0]
 
     indices_resto = np.random.choice(indices_posibles_resto, size=3, replace=True)
     posiciones_resto = [(i // N, i % N) for i in indices_resto]
@@ -48,47 +62,52 @@ def crear_entorno(N: int = 6):
     return palacio, pos_F, pos_P, pos_D, pos_M, pos_S, pos_CK
 
 def render_bayes(console: Console, mundo: dict, estado: dict, belief):
-    
+    """
+    Renderiza la interfaz mostrando el estado del agente y mapas de calor
+    con las probabilidades (belief) de trampas, soldado y salida en cada celda.
+
+    Args:
+        - console (Console): consola Rich utilizada para renderizar la interfaz.
+        - mundo (dict): información del entorno (incluye el tamaño N).
+        - estado (dict): estado actual del agente (posición, granada, flags).
+        - belief (object): estructura que contiene las distribuciones de probabilidad y visitadas.
+    """
+
     N = mundo["N"]
     pos = estado["agent_pos"]
 
-    # Mapas exigidos por el enunciado:
-    # 1) trampa cualquiera = suma de tipos (intuición)
     trampa_any = belief.F + belief.P + belief.D
 
-    # 2) soldado (si ya está muerto, todo 0)
     soldado = belief.M.copy()
     if not estado["soldado_vivo"]:
         soldado[:] = 0.0
 
-    # 3) salida
     salida = belief.S
 
     p_estado = tabla_estado(N, pos, estado["has_kurtz"], belief.visitadas)
     p_trampa = tabla_heatmap(N, trampa_any, "P(trampa cualquiera)", pos_agente=pos, has_kurtz=estado["has_kurtz"])
-    p_sold = tabla_heatmap(N, soldado, "P(soldado)", pos_agente=pos, has_kurtz=estado["has_kurtz"])
+    p_M = tabla_heatmap(N, soldado, "P(soldado)", pos_agente=pos, has_kurtz=estado["has_kurtz"])
     p_sal  = tabla_heatmap(N, salida, "P(salida)", pos_agente=pos, has_kurtz=estado["has_kurtz"])
 
-    legend = Text.from_markup(
-        "[bold]Info[/bold]\n\n"
-        f"Pos: {pos}\n"
-        f"has_kurtz: {estado['has_kurtz']}\n"
-        f"soldado_vivo: {estado['soldado_vivo']}\n"
-        f"granada: {estado['granada']}\n\n"
-        "[bold]Colores[/bold]\n"
-        "[dim]<0.01[/dim]  "
-        "[cyan]0.01-0.05[/cyan]  "
-        "[green]0.05-0.15[/green]  "
-        "[yellow]0.15-0.30[/yellow]  "
-        "[orange1]0.30-0.60[/orange1]  "
-        "[red]>0.60[/red]"
-    )
-    p_legend = Panel.fit(legend, border_style="cyan", padding=(1, 2))
-
     console.clear()
-    console.print(Align.center(Columns([p_estado, p_trampa, p_sold, p_sal], padding=(0, 2))))
+    console.print(Align.center(Columns([p_estado, p_trampa, p_M, p_sal], padding=(0, 2))))
 
 def tabla_heatmap(N: int, matriz, title: str, pos_agente=None, has_kurtz=False):
+    """
+    Construye una tabla tipo heatmap que representa una matriz de probabilidades
+    sobre el palacio, codificando visualmente los valores mediante colores.
+
+    Args:
+        - N (int): tamaño del palacio (N x N).
+        - matriz (array-like): matriz de probabilidades a representar.
+        - title (str): título que se mostrará en el panel.
+        - pos_agente (tuple[int, int] | None): posición actual del agente, que se
+          destacará visualmente si se proporciona.
+        - has_kurtz (bool): indica si el agente ya ha encontrado a Kurtz, para
+          modificar su estilo de representación.
+
+    """
+
     t = Table(show_header=False, box=None)
     for _ in range(N):
         t.add_column(justify="center", width=6)
@@ -136,6 +155,17 @@ def tabla_estado(N: int, pos_agente, has_kurtz, visited):
     )
 
 def estilo_prob(p: float) -> str:
+    """
+    Calcula el color asociado a una probabilidad para su representación 
+    en el heatmap, utilizando un gradiente de blanco a rojo.
+
+    Args:
+        - p (float): valor de probabilidad a representar, esperado en el rango [0, 1].
+
+    Returns:
+        - estilo (str): cadena de estilo Rich en formato RGB.
+    """
+
     p = max(0.0, min(1.0, p))
     p = p ** 0.4 
 

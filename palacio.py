@@ -8,14 +8,25 @@ from rich.table import Table
 from rich.columns import Columns
 import time
 import pyfiglet
+from collections import deque, defaultdict
+import math
 
 def bienvenida(console: Console) -> str:
+    """
+    Muestra el menú principal del juego y solicita al usuario el modo de juego.
+
+    Args:
+        - console (Console): consola Rich utilizada para mostrar la interfaz.
+
+    Returns:
+        - game_mode (str): opción seleccionada por el usuario.
+    """
     console.clear()
 
     figlet = pyfiglet.Figlet(font="slant")
-    titulo_ascii = figlet.renderText("BUSCANDO \nAL\nCORONEL KURTZ vol.2")
+    titulo = figlet.renderText("BUSCANDO \nAL\nCORONEL KURTZ vol.2")
 
-    titulo = Text(titulo_ascii, style="bold cyan", justify="center")
+    titulo = Text(titulo, style="bold cyan", justify="center")
     console.print(Panel(Align.center(titulo), border_style="cyan", padding=(1, 4)))
 
     # Panel de opciones (lo que quieres)
@@ -42,13 +53,19 @@ def bienvenida(console: Console) -> str:
             return game_mode
         console.print("[bold red]Entrada inválida.[/bold red] Escribe 1, 2, 3 o 4.")
 
-def instrucciones(console: Console):
+def instrucciones(console: Console) -> None:
+    """
+    Muestra en pantalla las instrucciones de la misión y los controles del juego.
+
+    Args:
+        - console (Console): consola Rich utilizada para mostrar los paneles de texto.
+    """
     console.clear()
 
     titulo1 = Text("INSTRUCCIONES DE LA MISIÓN", style="bold cyan", justify="center")
     titulo2 = Text("CONTROLES", style="bold cyan", justify="center")
 
-    narrativa = (
+    instrucciones = (
         "[bold cyan]SEGUNDA FASE:[/bold cyan] Razonamiento bajo incertidumbre\n"
         "Debes encontrar al [bold magenta]Coronel Kurtz (CK)[/bold magenta] y salir con vida del palacio, "
         "pero en esta fase, el entorno es incierto y solo dispones de información parcial, obtenida a través de tus percepciones.\n\n"
@@ -86,7 +103,7 @@ def instrucciones(console: Console):
 
     console.print(
         Panel(
-            Text.from_markup(narrativa),
+            Text.from_markup(instrucciones),
             border_style="cyan",
             padding=(1, 4),
         )
@@ -108,9 +125,36 @@ def instrucciones(console: Console):
         )
     )
 
-    input("\nPulsa ENTER para volver al menú...")
+    console.input("\nPulsa ENTER para volver al menú...")
+
+def pantalla_carga(console: Console, segundos: float = 1.0) -> None:
+    """
+    Muestra una pantalla de carga simulada mediante un spinner en consola.
+
+    Args:
+        - console (Console)
+        - segundos (float): Duración de la pantalla de carga en segundos.
+    """
+
+    console.clear()
+    with console.status("[bold]Preparando el palacio...[/bold]", spinner="dots"):
+        time.sleep(segundos)
 
 def inicializar_palacio(N: int = 6):
+    """
+    Inicializa el entorno del palacio generando el tablero y 
+    el estado inicial del agente, y mostrando una pantalla de 
+    carga previa al inicio de la partida.
+
+    Args:
+        - N (int): tamaño del palacio (N x N). Por defecto, 6.
+
+    Returns:
+        - mundo (dict): diccionario que contiene el tablero del palacio
+                        y el tamaño del entorno.
+        - estado_0 (dict): estado inicial del agente, incluyendo posición,
+                           estado del soldado, granada y flags internos.
+    """
 
     console = Console()
     pantalla_carga(console)
@@ -132,33 +176,40 @@ def inicializar_palacio(N: int = 6):
 
     return mundo, estado_0
 
-def pantalla_carga(console: Console, segundos: float = 1.0):
+def pantalla_game_over(console: Console, texto: str, color: str):
     """
-    Muestra una pantalla de carga simulada mediante un spinner en consola.
+    Muestra una pantalla tras finalizar la partida.
 
     Args:
-        - console (Console)
-        - segundos (float): Duración de la pantalla de carga en segundos.
+        - console (Console): consola Rich utilizada para renderizar la pantalla.
+        - texto (str): texto principal que se mostrará en formato ASCII.
+        - color (str): color utilizado para el texto y el borde del panel.
     """
 
     console.clear()
-    with console.status("[bold]Preparando el palacio...[/bold]", spinner="dots"):
-        time.sleep(segundos)
-
-def pantalla_game_over(console: Console, texto: str, color: str):
-    console.clear()
     fig = pyfiglet.Figlet(font="doom")
-    ascii_art = fig.renderText(texto)
+    art = fig.renderText(texto)
 
     console.print(
         Panel(
-            Align.center(Text(ascii_art, style=f"bold {color}")),
+            Align.center(Text(art, style=f"bold {color}")),
             border_style=color,
             padding=(1, 4),
         )
     )
 
 def menu_post_partida(console: Console) -> str:
+    """
+    Muestra el menú posterior a una partida y solicita al usuario qué hacer a continuación:
+    reintentar, volver al menú principal o salir del programa.
+
+    Args:
+        - console (Console): consola Rich utilizada para mostrar el panel de opciones.
+
+    Returns:
+        - opcion (str): opción elegida por el usuario ("1", "2" o "3").
+    """
+
     opciones = (
         "[bold cyan]1.[/bold cyan] Reintentar\n"
         "[bold green]2.[/bold green] Volver al menú principal\n"
@@ -181,24 +232,31 @@ def menu_post_partida(console: Console) -> str:
         console.print("[bold red]Entrada inválida.[/bold red] Escribe 1, 2 o 3.")
 
 def percept(estado: dict, mundo: dict) -> list[bool]:
-    
+    """
+    Calcula el percepto del agente a partir de su posición actual, detectando la 
+    presencia de elementos (F, P, D, M, S) en la zona formada por la celda actual
+    y sus vecinos, además de paredes y el grito tras matar al soldado.
+
+    Args:
+        - estado (dict): estado actual del agente (posición, flags y estado del soldado).
+        - mundo (dict): información del entorno (tablero y tamaño N).
+
+    Returns:
+        - perceptos (list[bool]): lista de booleanos con el siguiente orden:
+          [e_F, e_P, e_D, e_M, e_S, pared_arriba, pared_abajo, pared_izq, pared_der, grito].
+    """
+  
     N = mundo["N"]
 
     palacio = mundo["palacio"]
 
     pos = estado["agent_pos"]
     vecinos = neighbours(pos, N)
-
-    # IMPORTANTE: enunciado = celda actual O adyacentes
     zona = vecinos + [pos]
 
-    # Si palacio guarda sets:
     e_S = any("S" in palacio[v] for v in zona)
-
-    # Militar solo si sigue vivo (y está en celda/adyacente)
     e_M = estado["soldado_vivo"] and any("M" in palacio[v] for v in zona)
 
-    # Trampas (celda/adyacentes)
     e_F = any("F" in palacio[v] for v in zona)
     e_P = any("P" in palacio[v] for v in zona)
     e_D = any("D" in palacio[v] for v in zona)
@@ -213,11 +271,7 @@ def percept(estado: dict, mundo: dict) -> list[bool]:
 def comprobar_paredes(pos: tuple, N: int) -> tuple[bool]:
     """
     Determina la presencia de paredes alrededor de una posición dada.
-    
-    La función comprueba si desde la posición actual existen límites
-    del mapa que impidan el movimiento en alguna de las cuatro direcciones
-    (arriba, abajo, izquierda y derecha).
-    
+
     Args:
         - pos (tuple[int, int]): Posición actual (fila, columna) del agente.
         - N (int): Tamaño del palacio (N x N).
@@ -239,27 +293,68 @@ def comprobar_paredes(pos: tuple, N: int) -> tuple[bool]:
     return pared_arriba, pared_abajo, pared_izq, pared_der
 
 def neighbours(pos: tuple[int, int], N: int) -> list[tuple[int, int]]:
+    """
+    Devuelve las celdas vecinas válidas (arriba, abajo, izquierda y derecha)
+    de una posición dada dentro del tablero.
+
+    Args:
+        - pos (tuple[int, int]): posición actual (fila, columna).
+        - N (int): tamaño del palacio (N x N).
+
+    Returns:
+        - vecinos (list[tuple[int, int]]): lista de celdas vecinas dentro de los límites del tablero.
+    """
     i, j = pos
     cand = [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
     return [(x, y) for x, y in cand if 0 <= x < N and 0 <= y < N]
 
 class Beliefs:
+    """
+    Mantiene distribuciones de probabilidad (matrices N x N) para cada tipo de elemento
+    del palacio (F, P, D, M, S) y el conjunto de celdas visitadas por el agente.
+    """
+
     def __init__(self, N):
+        """
+        Inicializa las creencias con un prior uniforme sobre el tablero, excluyendo
+        la celda inicial (0,0), que se asume segura.
+
+        Args:
+            - N (int): tamaño del palacio (N x N).
+        """
         self.N = N
-        self.F = self._prior()
-        self.P = self._prior()
-        self.D = self._prior()
-        self.M = self._prior()
-        self.S = self._prior()
+        self.F = self.prior()
+        self.P = self.prior()
+        self.D = self.prior()
+        self.M = self.prior()
+        self.S = self.prior()
         self.visitadas = set()
 
-    def _prior(self):
+    def prior(self):
+        """
+        Genera un prior uniforme sobre todas las celdas del tablero salvo la inicial (0,0).
+
+        Returns:
+            - prior (np.ndarray): matriz N x N normalizada con probabilidad cero en (0,0).
+        """
         P = np.ones((self.N, self.N), dtype=float)
         P[0, 0] = 0.0
         P /= P.sum()
         return P
 
     def update(self, P, pos, vecinos, estimulo):
+        """
+        Actualiza una distribución de probabilidad en función de un estímulo observado.
+        Si el estímulo es True, el elemento debe estar en la zona (celda actual o vecinos).
+        Si el estímulo es False, el elemento no puede estar en esa zona.
+        Tras aplicar la restricción, renormaliza la matriz.
+
+        Args:
+            - P (np.ndarray): matriz de probabilidades a actualizar.
+            - pos (tuple[int, int]): posición actual del agente.
+            - vecinos (list[tuple[int, int]]): vecinos de la posición actual.
+            - estimulo (bool): indica si el estímulo asociado al elemento está presente.
+        """
         zona = set(vecinos + [pos])
 
         if estimulo:
@@ -276,13 +371,37 @@ class Beliefs:
             raise ValueError("Contradicción")
         P /= s
 
-def renormalizar(P):
+def renormalizar(P: np.ndarray) -> np.ndarray:
+    """
+    Renormaliza una matriz de probabilidades para que su suma total sea 1.
+    Si la masa total es 0, lanza una excepción por contradicción.
+
+    Args:
+        - P (np.ndarray): matriz de probabilidades a renormalizar.
+
+    Returns:
+        - P_norm (np.ndarray): matriz renormalizada con suma total 1.
+    """
     s = P.sum()
     if s == 0:
         raise ValueError("Contradicción: renormalizar con masa 0")
     return P / s
 
-def update_beliefs(beliefs, estado, mundo, perceptos):
+def update_beliefs(beliefs: Beliefs, estado: dict, mundo: dict, perceptos: list) -> None:
+    """
+    Actualiza las creencias bayesianas del agente a partir del percepto observado,
+    aplicando restricciones de presencia/ausencia sobre F, P, D, M y S en la zona
+    (celda actual + vecinos), gestionando el caso de muerte del soldado y dando
+    probabilidad cero a celdas visitadas.
+
+    Args:
+        - beliefs (Beliefs): estructura que contiene las distribuciones de probabilidad del agente.
+        - estado (dict): estado actual del agente (posición, flags y estado del soldado).
+        - mundo (dict): información del entorno (incluye N y el tablero).
+        - perceptos (list[bool]): lista de perceptos en el orden:
+          [e_F, e_P, e_D, e_M, e_S, pared_arriba, pared_abajo, pared_izq, pared_der, grito].
+    """
+
     N = mundo["N"]
     pos = estado["agent_pos"]
     vecinos = neighbours(pos, N)
@@ -290,7 +409,7 @@ def update_beliefs(beliefs, estado, mundo, perceptos):
     e_F, e_P, e_D, e_M, e_S = perceptos[0], perceptos[1], perceptos[2], perceptos[3], perceptos[4]
     grito = perceptos[9]
 
-    # 0) Hecho del mundo: si hay grito, el soldado deja de existir
+    #si hay grito, el soldado deja de existir
     if grito:
         estado["soldado_vivo"] = False
         beliefs.M[:] = 0.0
@@ -299,73 +418,90 @@ def update_beliefs(beliefs, estado, mundo, perceptos):
         if estado.get("soldado_vivo", True):
             beliefs.update(beliefs.M, pos, vecinos, e_M)
 
-    # 1) Update bayesiano del resto (siempre)
     beliefs.update(beliefs.F, pos, vecinos, e_F)
     beliefs.update(beliefs.P, pos, vecinos, e_P)
     beliefs.update(beliefs.D, pos, vecinos, e_D)
     beliefs.update(beliefs.S, pos, vecinos, e_S)
 
-    # 2) Marcar visitadas
     beliefs.visitadas.add(pos)
 
-    # 3) Restricción dura en visitadas (si sigues vivo, ahí no hay nada)
+    #Si se está vivo, la probabilidad de peligro es 0
     for v in beliefs.visitadas:
         beliefs.F[v] = 0.0
         beliefs.P[v] = 0.0
         beliefs.D[v] = 0.0
-        beliefs.M[v] = 0.0  # ok: si soldado existe, no puede estar en visitadas; si no existe, ya era 0
+        beliefs.M[v] = 0.0
 
-    # 4) Renormalizar (solo distribuciones que siguen existiendo)
+
     beliefs.F = renormalizar(beliefs.F)
     beliefs.P = renormalizar(beliefs.P)
     beliefs.D = renormalizar(beliefs.D)
 
     if estado.get("soldado_vivo", True) and not grito:
         beliefs.M = renormalizar(beliefs.M)
-    # beliefs.S: tú ya decidiste no renormalizar aquí, bien
-
-from collections import deque, defaultdict
-import math
-
 
 class AgenteGreedy:
     """
-    Agente greedy robusto con:
-    - función de riesgo basada en probabilidad de morir al entrar en la casilla vecina
-    - memoria anti-bucle (historial reciente + contador de visitas por celda)
-    - modo escape si detecta ciclo
-    - uso opcional de granada contra soldado con probabilidad alta
+    Agente greedy que selecciona movimientos maximizando una puntuación que combina:
+    - riesgo estimado de morir al entrar en una celda (trampas + soldado)
+    - preferencia por explorar celdas no visitadas
+    - preferencia por acercarse a la salida cuando ya se ha encontrado a Kurtz
+    - penalización por bucles
+    Además, puede lanzar la granada si detecta alta probabilidad de soldado en un vecino.
     """
 
     def __init__(
         self,
-        p_umbral: float = 0.20,        # umbral "aceptable" de riesgo al moverse
-        w_risk: float = 10.0,          # peso del riesgo (alto = más cobarde)
-        w_exit: float = 2.0,           # peso de buscar salida (solo si has_kurtz)
-        w_explore: float = 0.6,        # bonus por explorar casillas no visitadas
-        grenade_trigger: float = 0.55, # dispara granada si P(soldado vecino) >= esto
+        p_umbral: float = 0.20,
+        w_risk: float = 10.0,
+        w_exit: float = 2.0,
+        w_explore: float = 0.6,
+        grenade_trigger: float = 0.55,
         eps: float = 1e-9,
-        recent_len: int = 12,          # memoria corta para anti-ciclo
-        loop_trigger: int = 4,         # si la pos actual aparece >= esto en recent -> "ciclo"
-        w_recent: float = 2.5,         # penalización por volver a casillas del historial reciente
-        w_visit: float = 0.8,          # penalización por casillas muy visitadas (log)
+        recent_len: int = 12,
+        loop_trigger: int = 4,
+        w_recent: float = 2.5,
+        w_visit: float = 0.8,
     ):
-        self.p_umbral = p_umbral
-        self.w_risk = w_risk
-        self.w_exit = w_exit
-        self.w_explore = w_explore
-        self.grenade_trigger = grenade_trigger
+        """
+        Inicializa el agente greedy y sus parámetros de decisión.
+
+        Args:
+            - p_umbral (float): umbral "aceptable" de riesgo al moverse (si hay opciones por debajo, se priorizan).
+            - w_risk (float): peso del riesgo en la puntuación (más alto = más conservador).
+            - w_exit (float): peso de la probabilidad de salida (solo se aplica si has_kurtz es True).
+            - w_explore (float): bonus por explorar celdas no visitadas.
+            - grenade_trigger (float): umbral para lanzar granada si P(soldado vecino) lo supera.
+            - eps (float): tolerancia numérica para comparar riesgos con el umbral.
+            - recent_len (int): longitud de memoria corta para detectar y penalizar ciclos.
+            - loop_trigger (int): número de apariciones de la posición actual en la memoria reciente para activar modo escape.
+            - w_recent (float): penalización por volver a celdas del historial reciente.
+            - w_visit (float): penalización por visitar celdas demasiadas veces (logarítmica).
+        """
+        self.umbral_riesgo = p_umbral
+        self.peso_riesgo = w_risk
+        self.peso_salida = w_exit
+        self.peso_explorar = w_explore
+        self.umbral_granada = grenade_trigger
         self.eps = eps
 
-        self.recent = deque(maxlen=recent_len)
-        self.visit_counts = defaultdict(int)
+        self.reciente = deque(maxlen=recent_len)
+        self.conteo_visitas = defaultdict(int)
 
-        self.loop_trigger = loop_trigger
-        self.w_recent = w_recent
-        self.w_visit = w_visit
-
+        self.disparador_bucle = loop_trigger
+        self.peso_reciente = w_recent
+        self.peso_visitas = w_visit
 
     def tope(self, x: float) -> float:
+        """
+        Acota un valor al intervalo [0, 1] para evitar probabilidades inválidas.
+
+        Args:
+            - x (float): valor a acotar.
+
+        Returns:
+            - x_acotado (float): valor dentro de [0, 1].
+        """
         if x < 0.0:
             return 0.0
         if x > 1.0:
@@ -373,168 +509,183 @@ class AgenteGreedy:
         return x
 
     def decidir(self, estado: dict, beliefs, mundo: dict) -> str:
-        # NOTA: depende de que existan estas funciones en tu código:
-        # - neighbours(pos, N)
-        # y que beliefs.* permitan indexar con tuplas (i,j).
+        """
+        Decide la siguiente acción en base a las creencias (beliefs) y al estado actual.
+        Prioridades principales:
+        - salir si ya tienes a Kurtz y la probabilidad de salida en la celda es casi 1
+        - lanzar granada si hay alta probabilidad de soldado en una celda adyacente
+        - elegir el vecino con mejor puntuación, evitando ciclos
+        Si no hay vecinos válidos, devuelve "BLOCKED".
 
+        Args:
+            - estado (dict): estado del agente (posiciones y flags: has_kurtz, soldado_vivo, granada).
+            - beliefs (Beliefs): estructura con matrices de probabilidad F/P/D/M/S y conjunto visitadas.
+            - mundo (dict): información del entorno (incluye el tamaño N).
+
+        Returns:
+            - accion (str): acción seleccionada ("UP", "DOWN", "LEFT", "RIGHT", "EXIT" o "GRENADE_DIR").
+        """
         N = mundo["N"]
-        pos = estado["agent_pos"]
-        vecinos = neighbours(pos, N)
+        posicion = estado["agent_pos"]
+        vecinos = neighbours(posicion, N)
 
-        has_kurtz = bool(estado.get("has_kurtz", False))
+        tiene_kurtz = bool(estado.get("has_kurtz", False))
         soldado_vivo = bool(estado.get("soldado_vivo", True))
-        granada = bool(estado.get("granada", False))
+        tiene_granada = bool(estado.get("granada", False))
 
-        # 0) Salir: solo si llevas a Kurtz y estás prácticamente seguro de estar en una salida
-        if has_kurtz and float(beliefs.S[pos]) > 0.99:
+        # 0) Salir si ya puedes ganar y estás prácticamente seguro de estar en salida
+        if tiene_kurtz and float(beliefs.S[posicion]) > 0.99:
             return "EXIT"
 
-        # 1) Memoria: marca que estás decidiendo desde esta celda
-        self.visit_counts[pos] += 1
-        self.recent.append(pos)
+        # 1) Memoria
+        self.conteo_visitas[posicion] += 1
+        self.reciente.append(posicion)
 
-        # 2) Detectar ciclo / estancamiento: pos aparece muchas veces en recent
-        repeats_here = 0
-        for p in self.recent:
-            if p == pos:
-                repeats_here += 1
-        escape_mode = repeats_here >= self.loop_trigger
+        repeticiones_aqui = 0
+        for p in self.reciente:
+            if p == posicion:
+                repeticiones_aqui += 1
+        modo_escape = repeticiones_aqui >= self.disparador_bucle
 
-        # 3) Granada: si el soldado vive y hay vecino con M alta, lánzala
-        if soldado_vivo and granada and vecinos:
-            v_best = None
-            p_best = 0.0
-            for v in vecinos:
-                pM = self.tope(float(beliefs.M[v]))
-                if pM > p_best:
-                    p_best, v_best = pM, v
-            if v_best is not None and p_best >= self.grenade_trigger:
-                return self._accion_granada(pos, v_best)
+        # 2) Granada
+        if soldado_vivo and tiene_granada and vecinos:
+            mejor_vecino = None
+            mejor_prob = 0.0
 
-        # 4) Evaluar candidatos
+            for vecino in vecinos:
+                p_militar = self.tope(float(beliefs.M[vecino]))
+                if p_militar > mejor_prob:
+                    mejor_prob, mejor_vecino = p_militar, vecino
+
+            if mejor_vecino is not None and mejor_prob >= self.umbral_granada:
+                return self.accion_granada(posicion, mejor_vecino)
+
+        # 3) Evaluar candidatos
         candidatos = []
-        for v in vecinos:
-            # Probabilidades base (clamp por robustez)
-            p_trampa = self.tope(float(beliefs.F[v] + beliefs.P[v] + beliefs.D[v]))
-            p_sold = self.tope(float(beliefs.M[v])) if soldado_vivo else 0.0
+        for vecino in vecinos:
+            p_trampa = self.tope(float(beliefs.F[vecino] + beliefs.P[vecino] + beliefs.D[vecino]))
+            p_soldado = self.tope(float(beliefs.M[vecino])) if soldado_vivo else 0.0
 
-            # Riesgo de morir al ENTRAR en v: unión (asumiendo independencia)
-            risk = 1.0 - (1.0 - p_trampa) * (1.0 - p_sold)
-            risk = self.tope(risk)
+            riesgo = 1.0 - (1.0 - p_trampa) * (1.0 - p_soldado)
+            riesgo = self.tope(riesgo)
 
-            # Salida solo importa si puedes ganar (has_kurtz)
-            p_exit = self.tope(float(beliefs.S[v])) if has_kurtz else 0.0
+            p_salida = self.tope(float(beliefs.S[vecino])) if tiene_kurtz else 0.0
 
-            # Bonus por explorar
-            unvisited = 1.0 if v not in beliefs.visitadas else 0.0
+            no_visitada = 1.0 if vecino not in beliefs.visitadas else 0.0
 
-            # Penalizaciones anti-bucle
-            recent_pen = 1.0 if v in self.recent else 0.0
-            visit_pen = math.log1p(self.visit_counts.get(v, 0))
+            pen_reciente = 1.0 if vecino in self.reciente else 0.0
+            pen_visitas = math.log1p(self.conteo_visitas.get(vecino, 0))
 
-            # En escape_mode aprietas más contra repetir y relajas el umbral
-            w_recent_eff = self.w_recent * (2.0 if escape_mode else 1.0)
-            w_visit_eff = self.w_visit * (1.5 if escape_mode else 1.0)
+            peso_reciente_eff = self.peso_reciente * (2.0 if modo_escape else 1.0)
+            peso_visitas_eff = self.peso_visitas * (1.5 if modo_escape else 1.0)
 
-            p_umbral_eff = self.p_umbral * (1.3 if escape_mode else 1.0)
-            if p_umbral_eff > 0.95:
-                p_umbral_eff = 0.95
+            umbral_eff = self.umbral_riesgo * (1.3 if modo_escape else 1.0)
+            if umbral_eff > 0.95:
+                umbral_eff = 0.95
 
-            score = (
-                - self.w_risk * risk
-                + self.w_exit * p_exit
-                + self.w_explore * unvisited
-                - w_recent_eff * recent_pen
-                - w_visit_eff * visit_pen
+            puntuacion = (
+                - self.peso_riesgo * riesgo
+                + self.peso_salida * p_salida
+                + self.peso_explorar * no_visitada
+                - peso_reciente_eff * pen_reciente
+                - peso_visitas_eff * pen_visitas
             )
 
-            candidatos.append((v, score, risk, unvisited, recent_pen, visit_pen, p_umbral_eff))
+            candidatos.append((vecino, puntuacion, riesgo, no_visitada, pen_reciente, pen_visitas, umbral_eff))
 
         if not candidatos:
             return "BLOCKED"
 
-        # 5) Si hay opciones bajo el umbral, elegimos la mejor por score con desempates sanos
-        p_umbral_eff = candidatos[0][6]
-        seguras = []
-        for c in candidatos:
-            if c[2] <= p_umbral_eff + self.eps:
-                seguras.append(c)
+        # 4) elegir la mejor por score
+        umbral_eff = candidatos[0][6]
+        opciones_seguras = []
+        for candidato in candidatos:
+            if candidato[2] <= umbral_eff + self.eps:
+                opciones_seguras.append(candidato)
 
-        def key_mejor(c):
-            # c = (v, score, risk, unvisited, recent_pen, visit_pen, p_umbral_eff)
-            # Preferencia:
-            # 1) mayor score
-            # 2) menor riesgo
-            # 3) evitar volver a recent
-            # 4) preferir no visitadas
-            # 5) menos visitadas (visit_pen bajo)
+        def clave_mejor(c):
             return (c[1], -c[2], -c[4], c[3], -c[5])
 
-        if seguras:
-            best = max(seguras, key=key_mejor)
+        if opciones_seguras:
+            mejor = max(opciones_seguras, key=clave_mejor)
         else:
-            # 6) Si todo es peligroso: minimiza riesgo y rompe empates favoreciendo salir del ciclo
-            # Orden:
-            # 1) menor risk
-            # 2) no volver a recent
-            # 3) menos visitada
-            # 4) preferir nueva
-            # 5) mayor score
-            best = min(candidatos, key=lambda c: (c[2], c[4], c[5], -c[3], -c[1]))
+            mejor = min(candidatos, key=lambda c: (c[2], c[4], c[5], -c[3], -c[1]))
 
-        return self._accion(pos, best[0])
+        return self.accion(posicion, mejor[0])
 
-    def _accion(self, origen, destino) -> str:
-        oi, oj = origen
-        di, dj = destino
-        if di == oi - 1 and dj == oj:
+    def accion(self, origen, destino) -> str:
+        """
+        Traduce un movimiento entre dos celdas adyacentes a una acción.
+
+        Args:
+            - origen (tuple[int, int]): celda de origen (fila, columna).
+            - destino (tuple[int, int]): celda destino adyacente (fila, columna).
+
+        Returns:
+            - accion (str): acción equivalente ("UP", "DOWN", "LEFT" o "RIGHT").
+        """
+        fila_origen, col_origen = origen
+        fila_dest, col_dest = destino
+
+        if fila_dest == fila_origen - 1 and col_dest == col_origen:
             return "UP"
-        if di == oi + 1 and dj == oj:
+        if fila_dest == fila_origen + 1 and col_dest == col_origen:
             return "DOWN"
-        if di == oi and dj == oj - 1:
+        if fila_dest == fila_origen and col_dest == col_origen - 1:
             return "LEFT"
-        if di == oi and dj == oj + 1:
+        if fila_dest == fila_origen and col_dest == col_origen + 1:
             return "RIGHT"
+
         raise ValueError("Movimiento no válido")
 
-    def _accion_granada(self, origen, destino) -> str:
-        mov = self._accion(origen, destino)
-        return "GRENADE_" + mov
+    def accion_granada(self, origen, destino) -> str:
+        """
+        Construye la acción de lanzamiento de granada hacia una celda adyacente.
 
+        Args:
+            - origen (tuple[int, int]): celda desde la que se lanza la granada.
+            - destino (tuple[int, int]): celda objetivo adyacente.
 
+        Returns:
+            - accion (str): acción con prefijo de granada ("GRENADE_UP", etc.).
+        """
+        movimiento = self.accion(origen, destino)
+        return "GRANADA_" + movimiento
 
-def elegir_movimiento_usuario(pos, beliefs, mundo, estado):
+def elegir_movimiento_usuario(pos: tuple, beliefs: Beliefs, mundo: dict, estado: dict) -> str:
+    """
+    Solicita al usuario una acción.
+    Permite movimiento (W/A/S/D), lanzar granada (G) y salir (E) si se cumplen
+    las condiciones de victoria.
+
+    Args:
+        - pos (tuple[int, int]): posición actual del agente.
+        - beliefs (Beliefs): creencias del agente con matrices F, P, D, M y S.
+        - mundo (dict): diccionario del entorno (incluye N y el tablero palacio).
+        - estado (dict): estado actual del agente (granada, has_kurtz, etc.).
+
+    Returns:
+        - accion (str): acción elegida por el usuario ("UP", "DOWN", "LEFT", "RIGHT",
+          "EXIT" o "GRENADE_DIR").
+    """
     N = mundo["N"]
     vecinos = neighbours(pos, N)
 
-    # WASD → acción
-    mov_map = {
-        "W": "UP",
-        "S": "DOWN",
-        "A": "LEFT",
-        "D": "RIGHT",
-    }
-
-    # acción → delta (solo para mostrar info)
-    delta = {
-        "UP": (-1, 0),
-        "DOWN": (1, 0),
-        "LEFT": (0, -1),
-        "RIGHT": (0, 1),
-    }
+    mapa_mov = {"W": "UP", "S": "DOWN", "A": "LEFT", "D": "RIGHT"}
+    direcciones = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
 
     print("\n--- ELIGE ACCIÓN ---")
     print(f"Posición actual: {pos}")
     print("Opciones:")
 
-    for k, action in mov_map.items():
-        di, dj = delta[action]
+    for k, accion in mapa_mov.items():
+        di, dj = direcciones[accion]
         v = (pos[0] + di, pos[1] + dj)
         if v in vecinos:
             p_trampa = float(beliefs.F[v] + beliefs.P[v] + beliefs.D[v])
             p_sold   = float(beliefs.M[v])
             p_exit   = float(beliefs.S[v])
-            print(f"  {k} ({action}) -> {v} | "
+            print(f"  {k} ({accion}) -> {v} | "
                   f"P(trampa)={p_trampa:.2f} | "
                   f"P(soldado)={p_sold:.2f} | "
                   f"P(salida)={p_exit:.2f}")
@@ -552,8 +703,8 @@ def elegir_movimiento_usuario(pos, beliefs, mundo, estado):
                 continue
 
             dir_key = input("Dirección granada (W/A/S/D): ").strip().upper()
-            if dir_key in mov_map:
-                return f"GRENADE_{mov_map[dir_key]}"
+            if dir_key in mapa_mov:
+                return f"GRANADA_{mapa_mov[dir_key]}"
 
             print("Dirección inválida.")
             continue
@@ -571,15 +722,25 @@ def elegir_movimiento_usuario(pos, beliefs, mundo, estado):
 
 
         # MOVIMIENTO NORMAL
-        if t in mov_map:
-            return mov_map[t]
+        if t in mapa_mov:
+            return mapa_mov[t]
 
         print("Entrada inválida.")
 
 def funcion_transicion(estado: dict, mundo: dict, accion: str):
     """
-    Devuelve (nuevo_estado, info)
-    info puede contener: moved, dead, win, hit_wall, invalid_exit, picked_kurtz, grenade, killed_soldier...
+    Aplica una acción al estado actual y devuelve el nuevo estado junto con información
+    del resultado (movimiento, muerte, victoria, acción inválida o choque con pared).
+    Gestiona acciones de movimiento, salida y lanzamiento de granada.
+
+    Args:
+        - estado (dict): estado actual del agente (posición, flags y recursos).
+        - mundo (dict): información del entorno (tablero del palacio y tamaño N).
+        - accion (str): acción a ejecutar ("UP", "DOWN", "LEFT", "RIGHT", "EXIT" o "GRANADA_DIR").
+
+    Returns:
+        - nuevo (dict): estado actualizado tras aplicar la acción.
+        - info (dict): diccionario con flags del resultado y, si aplica, un mensaje.
     """
     palacio = mundo["palacio"]
     N = mundo["N"]
@@ -587,11 +748,11 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
     nuevo = dict(estado)
     nuevo["ultima_accion_matar_soldado"] = False
 
-    MOVES = {"UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)}
+    direcciones = {"UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)}
 
-    # ---------------- EXIT ----------------
+    # ---------------- SALIDA ----------------
     if accion == "EXIT":
-        # solo puedes salir si estás en una celda con "S"
+        # solo se puede salir si estás en una celda con "S"
         celda = palacio[nuevo["agent_pos"]]
         if "S" not in celda:
             return nuevo, {"invalid_exit": True, "message": "No estás en la salida."}
@@ -601,41 +762,38 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
 
         return nuevo, {"win": True, "message": "Kurtz y tú habéis salido del palacio juntos."}
 
-    # ---------------- GRENADE ----------------
-    if accion.startswith("GRENADE_"):
+    # ---------------- GRANADA ----------------
+    if accion.startswith("GRANADA_"):
         if not nuevo.get("granada", False):
             return nuevo, {"message": "Ya no tienes granada."}
 
-        dir_ = accion.split("_", 1)[1]  # "UP"/"DOWN"/...
-        if dir_ not in MOVES:
+        dir_ = accion.split("_", 1)[1]
+        if dir_ not in direcciones:
             return nuevo, {"invalid_action": True, "message": f"Dirección inválida: {dir_}"}
 
-        # La granada se consume SIEMPRE al lanzarla (igual que en tu kurtz.py)
         nuevo["granada"] = False
 
-        di, dj = MOVES[dir_]
+        di, dj = direcciones[dir_]
         i, j = nuevo["agent_pos"]
         target = (i + di, j + dj)
 
         if not (0 <= target[0] < N and 0 <= target[1] < N):
             return nuevo, {"grenade": True, "hit_wall": True, "message": "La granada golpea la pared y se desperdicia."}
 
-        # Si hay soldado en la celda objetivo y sigue vivo -> muere
         celda_t = palacio[target]
         if nuevo.get("soldado_vivo", True) and ("M" in celda_t):
             nuevo["soldado_vivo"] = False
             nuevo["ultima_accion_matar_soldado"] = True
             return nuevo, {"grenade": True, "killed_soldier": True, "message": "¡Soldado eliminado!"}
 
-        # Si cae en CK o en otra casilla, no pasa nada (sin efectos colaterales)
         return nuevo, {"grenade": True, "message": "La granada explota sin efecto."}
 
-    # ---------------- MOVE ----------------
-    if accion not in MOVES:
+    # ---------------- MOVIMIENTO ----------------
+    if accion not in direcciones:
         return nuevo, {"invalid_action": True, "message": f"Acción inválida: {accion}"}
 
     i, j = nuevo["agent_pos"]
-    di, dj = MOVES[accion]
+    di, dj = direcciones[accion]
     ni, nj = i + di, j + dj
 
     if not (0 <= ni < N and 0 <= nj < N):
@@ -654,7 +812,7 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
     if ("F" in celda) or ("P" in celda) or ("D" in celda):
         return nuevo, {"dead": True, "cause": "TRAP"}
 
-    # muerte por soldado (si sigue vivo)
+    # muerte por soldado
     if nuevo.get("soldado_vivo", True) and ("M" in celda):
         return nuevo, {"dead": True, "cause": "SOLDIER"}
 
@@ -662,56 +820,62 @@ def funcion_transicion(estado: dict, mundo: dict, accion: str):
 
 def jugar_partida_bayes(console: Console) -> dict:
     """
-    Partida manual Bayes.
-    Devuelve info final:
-      - {"dead": True, ...}
-      - {"win": True, ...}
-      - {"blocked": True, ...}  (si contradicción en creencias)
+    Ejecuta una partida con control manual del usuario.
+    El agente actualiza sus creencias a partir de los perceptos y permite al usuario
+    decidir la acción en cada turno hasta ganar, morir o quedar bloqueado.
+
+    Args:
+        - console (Console): consola Rich utilizada para renderizar el estado del juego.
+
+    Returns:
+        - resultado (dict): diccionario con el resultado final de la partida
+          (victoria, muerte o bloqueo) y la información asociada.
     """
 
-    # 0) Inicializar mundo y estado
-    mundo, estado = inicializar_palacio(N=6)  # o el N que quieras
+    #Inicializar mundo y estado
+    mundo, estado = inicializar_palacio(N=6)
     beliefs = Beliefs(mundo["N"])
 
-    # 1) Primer percepto + update inicial (antes de mover)
     try:
         perceptos = percept(estado, mundo)
         update_beliefs(beliefs, estado, mundo, perceptos)
     except ValueError:
-        # Contradicción desde el inicio (muy raro, pero posible si algo está mal)
         return {"blocked": True, "message": "Contradicción inicial en creencias."}
 
     while True:
         console.clear()
-
-        # 2) Render (usa el que tengas)
-        # Si estás usando entorno2.render_bayes:
-        # entorno2.render_bayes(console, mundo, estado, beliefs)
-        # Si tienes otro render, cámbialo aquí.
         entorno_palacio2.render_bayes(console, mundo, estado, beliefs)
 
-        # 3) Elegir acción por usuario (UP/DOWN/LEFT/RIGHT, GRENADE_*, EXIT)
         accion = elegir_movimiento_usuario(estado["agent_pos"], beliefs, mundo, estado)
 
-        # 4) Aplicar transición del mundo REAL
         estado, info = funcion_transicion(estado, mundo, accion)
 
-        # 5) Si murió / ganó -> cortar
         if info.get("dead"):
             return {"dead": True, **info}
 
         if info.get("win"):
             return {"win": True, **info}
 
-        # 6) Nuevo percepto + update bayesiano
         try:
             perceptos = percept(estado, mundo)
             update_beliefs(beliefs, estado, mundo, perceptos)
         except ValueError:
-            # Tu update_beliefs lanza ValueError("Contradicción")
             return {"blocked": True, "message": "Bloqueo lógico: contradicción en creencias."}
 
 def jugar_partida_bayes_greedy(console: Console, agente) -> dict:
+    """
+    Ejecuta una partida completa con un agente automático greedy.
+    El agente decide las acciones en función de las creencias probabilísticas,
+    actualizadas a partir de los perceptos, hasta ganar, morir o quedar bloqueado.
+
+    Args:
+        - console (Console): consola Rich utilizada para renderizar el estado del juego.
+        - agente (object): agente automático encargado de decidir la acción en cada turno.
+
+    Returns:
+        - resultado (dict): diccionario con el resultado final de la partida
+          (victoria, muerte o bloqueo) e información asociada.
+    """
     mundo, estado = inicializar_palacio(N=6)
     beliefs = Beliefs(mundo["N"])
 
@@ -743,9 +907,13 @@ def jugar_partida_bayes_greedy(console: Console, agente) -> dict:
         except ValueError:
             return {"blocked": True, "message": "Bloqueo lógico: contradicción en creencias."}
 
-
-
-def main():
+def main() -> None:
+    """
+    Función del flujo principal del programa.
+    Muestra el menú inicial, gestiona la navegación entre modos de juego
+    (instrucciones, modo manual bayesiano y modo automático greedy) y
+    controla el ciclo de partidas hasta que el usuario decide salir.
+    """
     console = Console()
     game_mode = bienvenida(console)
 
@@ -757,7 +925,7 @@ def main():
             game_mode = bienvenida(console)
             continue
 
-        # 2) Modo manual (usuario decide movimientos viendo mapas)
+        # 2) Modo manual
         elif game_mode == "2":
             
             info = jugar_partida_bayes(console)
@@ -772,17 +940,17 @@ def main():
             time.sleep(1.5)
             opcion = menu_post_partida(console)
 
-            if opcion == "1":      # rejugar mismo modo
+            if opcion == "1":      
                 continue
-            if opcion == "2":      # volver al menú principal
+            if opcion == "2":  
                 game_mode = bienvenida(console)
                 continue
-            if opcion == "3":      # salir
+            if opcion == "3": 
                 return
 
-
+        # 3) Modo automático 
         elif game_mode == "3":
-            agente = AgenteGreedy()     # <- pon el nombre real de tu agente automático
+            agente = AgenteGreedy() 
             info = jugar_partida_bayes_greedy(console, agente)
 
             if info.get("dead"):
@@ -805,6 +973,7 @@ def main():
 
         elif game_mode == "4":
             return
+        
 
 if __name__ == "__main__":
     main()
