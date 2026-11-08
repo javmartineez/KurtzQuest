@@ -1,17 +1,20 @@
+# Python
 __pycache__/
+*.py[cod]
 
-# Entornos virtuales
+# Virtual environments
 .venv/
 venv/
 env/
 
-#notebook de pruebas
+# Scratch notebook
 pruebas.ipynb
 
-#memoria
+# Course report
 memoria.docx
 memoria.pdf
-*.py[cod]
+
+# Jupyter / editors / OS
 .ipynb_checkpoints/
 .vscode/
 .DS_Store
