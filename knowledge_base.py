@@ -2,17 +2,17 @@ from itertools import combinations
 
 class KnowledgeBase:
     """
-    Base de conocimiento para deducción lógica del palacio.
-    Mantiene perceptos observados y genera mundos compatibles para inferir seguridad
-    de celdas y deducir la salida usando el resplandor.
+    Knowledge base for logical deduction about the palace.
+    Keeps the observed percepts and generates compatible worlds to infer the safety
+    of cells and deduce the exit using the glow.
     """
 
     def __init__(self, N: int):
         """
-        Inicializa la base de conocimiento para un palacio de tamaño N x N.
+        Initialises the knowledge base for an N x N palace.
 
         Args:
-            - N (int): tamaño del tablero (N x N).
+            - N (int): board size (N x N).
         """
         self.N = N
         self.visited: set[tuple[int, int]] = set()
@@ -21,12 +21,12 @@ class KnowledgeBase:
 
     def add_percept(self, pos, perceptos):
         """
-        Registra el percepto observado en una posición y actualiza la KB.
+        Records the percept observed at a position and updates the KB.
 
         Args:
-            - pos (tuple[int, int]): posición donde se observa el percepto.
-            - perceptos (list[bool]): lista de perceptos con el orden esperado:
-              [brisa, ronquido, resplandor, ..., grito].
+            - pos (tuple[int, int]): position where the percept is observed.
+            - perceptos (list[bool]): list of percepts in the expected order:
+              [breeze, snore, glow, ..., scream].
         """
         brisa, ronquido, resplandor, *_resto, grito = perceptos
         self.visited.add(pos)
@@ -36,13 +36,13 @@ class KnowledgeBase:
 
     def neighbours(self, celda: tuple[int, int]):
         """
-        Devuelve las celdas vecinas.
+        Returns the neighbouring cells.
 
         Args:
-            - celda (tuple[int, int]): celda de referencia.
+            - celda (tuple[int, int]): reference cell.
 
         Returns:
-            - vecinos (list[tuple[int, int]]): vecinos dentro del tablero.
+            - vecinos (list[tuple[int, int]]): neighbours within the board.
         """
         i, j = celda
         candidatos = [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)]
@@ -50,25 +50,25 @@ class KnowledgeBase:
 
     def compatible_worlds(self):
         """
-        Genera mundos compatibles con las observaciones acumuladas.
-        Un mundo se representa como (precipicios, soldado), donde:
-        - precipicios es un conjunto de exactamente 3 celdas.
-        - soldado es una celda o None si el soldado ya está muerto.
+        Generates the worlds compatible with the accumulated observations.
+        A world is represented as (pits, soldier), where:
+        - pits is a set of exactly 3 cells.
+        - soldier is a cell, or None if the soldier is already dead.
 
         Returns:
-            - worlds (generator): generador de tuplas (precipicios, pos_soldado).
+            - worlds (generator): generator of (pits, soldier_pos) tuples.
         """
         celdas = [(i, j) for i in range(self.N) for j in range(self.N)]
 
-        # 1) Candidatos iniciales (no visitados)
+        # 1) Initial candidates (not visited)
         candidatos_precipicio = [c for c in celdas if c not in self.visited]
         candidatos_soldado = [c for c in celdas if c not in self.visited]
 
-        # 2) Filtrado de brisa y ronquido
+        # 2) Filtering by breeze and snore
         prohibidos_precipicio = set()
         prohibidos_soldado = set()
-        fronteras_requeridas_precipicio = []  # en cada observación con brisa=True, al menos un precipicio aquí
-        fronteras_requeridas_soldado = []     # en cada observación con ronquido=True, el soldado debe estar aquí
+        fronteras_requeridas_precipicio = []  # for each observation with breeze=True, at least one pit here
+        fronteras_requeridas_soldado = []     # for each observation with snore=True, the soldier must be here
 
         for celda, (brisa, ronquido, _resplandor) in self.obs.items():
             vecinos = set(self.neighbours(celda))
@@ -87,7 +87,7 @@ class KnowledgeBase:
         candidatos_precipicio = [c for c in candidatos_precipicio if c not in prohibidos_precipicio]
         candidatos_soldado = [c for c in candidatos_soldado if c not in prohibidos_soldado]
 
-        # 3) Enumeración de precipicios
+        # 3) Enumerating pits
         for precipicios in combinations(candidatos_precipicio, 3):
             precipicios = set(precipicios)
 
@@ -99,7 +99,7 @@ class KnowledgeBase:
             if not valido:
                 continue
 
-            # 4) Enumeración del soldado si vive
+            # 4) Enumerating the soldier if alive
             if self.soldier_dead:
                 yield (precipicios, None)
             else:
@@ -118,14 +118,14 @@ class KnowledgeBase:
 
     def entails_no_pit(self, celda):
         """
-        Determina si la KB implica que una celda no contiene precipicio.
-        Devuelve True solo si existen mundos compatibles y en todos ellos la celda no es precipicio.
+        Determines whether the KB entails that a cell contains no pit.
+        Returns True only if compatible worlds exist and the cell is not a pit in any of them.
 
         Args:
-            - celda (tuple[int, int]): celda a evaluar.
+            - celda (tuple[int, int]): cell to evaluate.
 
         Returns:
-            - no_precipicio (bool): True si en todos los mundos compatibles la celda no es precipicio.
+            - no_precipicio (bool): True if the cell is not a pit in every compatible world.
         """
         hay_modelo = False
         for precipicios, _pos_soldado in self.compatible_worlds():
@@ -136,14 +136,14 @@ class KnowledgeBase:
 
     def entails_no_soldier(self, celda):
         """
-        Determina si la KB implica que una celda no contiene al soldado.
-        Si el soldado ya está muerto, devuelve True.
+        Determines whether the KB entails that a cell does not contain the soldier.
+        If the soldier is already dead, returns True.
 
         Args:
-            - celda (tuple[int, int]): celda a evaluar.
+            - celda (tuple[int, int]): cell to evaluate.
 
         Returns:
-            - no_soldado (bool): True si el soldado no puede estar en esa celda.
+            - no_soldado (bool): True if the soldier cannot be in that cell.
         """
         if self.soldier_dead:
             return True
@@ -157,24 +157,24 @@ class KnowledgeBase:
 
     def is_safe(self, celda: tuple[int, int]):
         """
-        Determina si una celda es segura según la KB (sin precipicio y sin soldado).
+        Determines whether a cell is safe according to the KB (no pit and no soldier).
 
         Args:
-            - celda (tuple[int, int]): celda a evaluar.
+            - celda (tuple[int, int]): cell to evaluate.
 
         Returns:
-            - segura (bool): True si la KB implica que la celda es segura.
+            - segura (bool): True if the KB entails that the cell is safe.
         """
         return self.entails_no_pit(celda) and self.entails_no_soldier(celda)
 
     def possible_pits_and_soldier(self):
         """
-        Calcula las celdas que podrían contener precipicio y las que podrían contener al soldado
-        según todos los mundos compatibles.
+        Computes the cells that could contain a pit and those that could contain the soldier
+        across all compatible worlds.
 
         Returns:
-            - posibles_precipicios (set[tuple[int, int]]): celdas que son pit en algún mundo consistente.
-            - posibles_soldado (set[tuple[int, int]]): celdas donde el soldado aparece en algún mundo consistente.
+            - posibles_precipicios (set[tuple[int, int]]): cells that are a pit in some consistent world.
+            - posibles_soldado (set[tuple[int, int]]): cells where the soldier appears in some consistent world.
         """
         posibles_precipicios = set()
         posibles_soldado = set()
@@ -188,22 +188,22 @@ class KnowledgeBase:
 
     def _neigh_plus_self(self, pos):
         """
-        Devuelve el conjunto formado por la celda y sus vecinos adyacentes.
+        Returns the set made up of the cell and its adjacent neighbours.
 
         Args:
-            - pos (tuple[int, int]): celda de referencia.
+            - pos (tuple[int, int]): reference cell.
 
         Returns:
-            - zona (set[tuple[int, int]]): {pos} | vecinos(pos).
+            - zona (set[tuple[int, int]]): {pos} | neighbours(pos).
         """
         return {pos} | set(self.neighbours(pos))
 
     def exit_candidates(self):
         """
-        Obtiene las celdas candidatas a ser la salida usando SOLO el resplandor.
+        Gets the candidate exit cells using ONLY the glow.
 
         Returns:
-            - candidatas (set[tuple[int, int]]): celdas compatibles con todas las observaciones de resplandor.
+            - candidatas (set[tuple[int, int]]): cells compatible with every glow observation.
         """
         todas = {(i, j) for i in range(self.N) for j in range(self.N)}
         candidatas = set(todas)
@@ -219,12 +219,12 @@ class KnowledgeBase:
 
     def possible_exits(self):
         """
-        Calcula las posibles celdas de salida considerando:
-        - restricciones por resplandor
-        - la salida no puede coincidir con precipicios ni con el soldado (si vive).
+        Computes the possible exit cells taking into account:
+        - the glow constraints
+        - the exit cannot coincide with pits or with the soldier (if alive).
 
         Returns:
-            - posibles (set[tuple[int, int]]): celdas que podrían ser salida en algún mundo consistente.
+            - posibles (set[tuple[int, int]]): cells that could be the exit in some consistent world.
         """
         candidatas_resplandor = self.exit_candidates()
         posibles = set()
@@ -241,16 +241,16 @@ class KnowledgeBase:
 
     def entails_exit(self, celda):
         """
-        Determina si la KB implica que la salida está exactamente en la celda indicada.
-        La salida queda deducida si, para todos los mundos compatibles, el conjunto de
-        salidas posibles siempre incluye 'celda' y la intersección de todas esas salidas
-        es únicamente {celda}.
+        Determines whether the KB entails that the exit is exactly at the given cell.
+        The exit is deduced if, for every compatible world, the set of possible
+        exits always includes 'celda' and the intersection of all those exits
+        is exactly {celda}.
 
         Args:
-            - celda (tuple[int, int]): celda candidata a ser la salida.
+            - celda (tuple[int, int]): candidate exit cell.
 
         Returns:
-            - implicada (bool): True si la salida queda deducida con certeza en 'celda'.
+            - implicada (bool): True if the exit is deduced with certainty to be at 'celda'.
         """
 
         candidatas_resplandor = set(self.exit_candidates())
@@ -281,10 +281,10 @@ class KnowledgeBase:
 
     def known_exit(self):
         """
-        Devuelve la salida si está deducida con certeza lógica.
+        Returns the exit if it has been deduced with logical certainty.
         Returns:
-            - salida (tuple[int, int] | None): celda de la salida si ha sido
-                deducida con certeza, None en caso contrario.
+            - salida (tuple[int, int] | None): exit cell if it has been
+                deduced with certainty, None otherwise.
         """
         for c in self.exit_candidates():
             if self.entails_exit(c):

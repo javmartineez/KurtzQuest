@@ -7,23 +7,23 @@ from rich.columns import Columns
 
 def crear_entorno(N: int = 6):
     """
-    Genera de forma aleatoria el entorno inicial del palacio, incluyendo
-    la disposición del tablero y la ubicación de los elementos clave del juego.
-    La celda inicial (0,0) se reserva siempre como posición segura de inicio.
+    Randomly generates the initial palace environment, including
+    the board layout and the location of the key game elements.
+    The starting cell (0,0) is always reserved as a safe starting position.
 
     Args:
-        - N (int): dimensión del palacio (N x N). Por defecto, 6.
+        - N (int): size of the palace (N x N). Defaults to 6.
 
     Returns:
-        - palacio (np.ndarray): matriz que representa el tablero del juego,
-          donde cada celda puede contener:
-          - None (celda vacía),
-          - "P" (precipicio),
-          - "S" (soldado enemigo),
-          - "CK" (Coronel Kurtz).
-        - pos_soldado (tuple[int, int]): posición del soldado enemigo.
-        - pos_kurtz (tuple[int, int]): posición del Coronel Kurtz.
-        - pos_salida (tuple[int, int]): posición de la salida del palacio.
+        - palacio (np.ndarray): matrix representing the game board,
+          where each cell may contain:
+          - None (empty cell),
+          - "P" (pit),
+          - "S" (enemy soldier),
+          - "CK" (Colonel Kurtz).
+        - pos_soldado (tuple[int, int]): position of the enemy soldier.
+        - pos_kurtz (tuple[int, int]): position of Colonel Kurtz.
+        - pos_salida (tuple[int, int]): position of the palace exit.
     """
 
     NUM_TRAMPAS = 3
@@ -31,10 +31,10 @@ def crear_entorno(N: int = 6):
 
     palacio = np.full((N,N), None, dtype=object)                                              
 
-    indices_posibles = np.arange(1, N * N)                                                              # del 1 al 35 - el (0,0) siempre debe ser la casilla inicial
+    indices_posibles = np.arange(1, N * N)                                                              # 1 to 35 - (0,0) must always be the starting cell
     indices = np.random.choice(indices_posibles, 
                                size=NUM_TRAMPAS + NUM_SOLDADOS + 2, 
-                               replace=False)    #Escogemos posiciones aleatorias para las trampas (asegurando que no estén en la misma casilla y que el (0,0) no sea una de ellas)
+                               replace=False)    #Pick random positions for the traps (making sure they are not in the same cell and that (0,0) is not one of them)
     posiciones_random = [(i // N, i % N) for i in indices]  
 
     pos_soldado = posiciones_random[0]  
@@ -62,22 +62,22 @@ def render(
     exit_pos: tuple[int, int] | None = None,
 ):
     """
-    Renderiza en consola el mapa del palacio desde la perspectiva del conocimiento
-    actual del agente, mostrando su posición, las celdas visitadas, las celdas
-    seguras y las posibles amenazas sacadas a paritr de la KB.
+    Renders the palace map in the console from the perspective of the agent's
+    current knowledge, showing its position, the visited cells, the safe
+    cells and the possible threats inferred from the KB.
 
     Args:
-        - console (Console): consola Rich utilizada para renderizar la interfaz.
-        - N (int): tamaño del palacio (N x N).
-        - pos_agente (tuple[int, int]): posición actual del Capitán Willard.
-        - has_kurtz (bool): indica si el agente ya ha encontrado al Coronel Kurtz.
-        - visited (set[tuple[int, int]]): conjunto de celdas ya visitadas por el agente.
-        - safe (set[tuple[int, int]]): conjunto de celdas deducidas como seguras.
-        - possible_pits (set[tuple[int, int]]): celdas que podrían contener un precipicio.
-        - possible_soldier (set[tuple[int, int]]): celdas que podrían contener al soldado enemigo.
-        - show_exit_if_known (bool): indica si debe mostrarse la salida cuando su posición
-          ha sido deducida con certeza.
-        - exit_pos (tuple[int, int] | None): posición de la salida si es conocida; None en caso contrario.
+        - console (Console): Rich console used to render the interface.
+        - N (int): size of the palace (N x N).
+        - pos_agente (tuple[int, int]): current position of Captain Willard.
+        - has_kurtz (bool): whether the agent has already found Colonel Kurtz.
+        - visited (set[tuple[int, int]]): set of cells already visited by the agent.
+        - safe (set[tuple[int, int]]): set of cells deduced to be safe.
+        - possible_pits (set[tuple[int, int]]): cells that might contain a pit.
+        - possible_soldier (set[tuple[int, int]]): cells that might contain the enemy soldier.
+        - show_exit_if_known (bool): whether the exit should be shown once its position
+          has been deduced with certainty.
+        - exit_pos (tuple[int, int] | None): exit position if known; None otherwise.
     """
 
     table = Table(show_header=False, box=None)
@@ -117,24 +117,24 @@ def render(
             row.append(cell)
         table.add_row(*row)
 
-    # Panel del mapa: FIT (no ocupa toda la terminal)
+    # Map panel: FIT (does not take up the whole terminal)
     map_panel = Panel.fit(
         Align.center(table),
-        title="Palacio (conocimiento del agente)",
+        title="Palace (agent knowledge)",
         border_style="cyan",
         padding=(1, 2),
     )
 
-    # Panel de leyenda: FIT también
+    # Legend panel: FIT as well
     legend_text = Text.from_markup(
-        "[bold]Leyenda[/bold]\n\n"
-        "[blue]•[/blue] visitado\n"
-        "[bold cyan]✓[/bold cyan] seguro\n"
-        "[bold white]P?[/bold white] posible precipicio\n"
-        "[bold yellow]S?[/bold yellow] posible soldado\n"
-        "[bold red]?![/bold red] posible peligro\n"
-        "[bold green]•[/bold green] salida (si conocida)\n"
-        "[bold purple]CW[/bold purple] CK encontrado"
+        "[bold]Legend[/bold]\n\n"
+        "[blue]•[/blue] visited\n"
+        "[bold cyan]✓[/bold cyan] safe\n"
+        "[bold white]P?[/bold white] possible pit\n"
+        "[bold yellow]S?[/bold yellow] possible soldier\n"
+        "[bold red]?![/bold red] possible danger\n"
+        "[bold green]•[/bold green] exit (if known)\n"
+        "[bold purple]CW[/bold purple] CK found"
     )
     legend_panel = Panel.fit(
         legend_text,

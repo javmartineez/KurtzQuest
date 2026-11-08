@@ -12,35 +12,35 @@ FLECHAS = {"up": "↑", "down": "↓", "left": "←", "right": "→", "stay": "�
 
 def crear_entorno(N: int = 6, n_islas: int = 2, seed: int | None = None):
     """
-    Genera el entorno del río para el juego, creando una cuadrícula con un punto
-    de inicio, una salida, islas intermedias y una fuerza de corriente asociada
-    a cada columna del río.
+    Generates the river environment for the game, creating a grid with a
+    starting point, an exit, intermediate islands and a current strength associated
+    with each river column.
 
     Args:
-        - N (int): tamaño del tablero del río (N x N).
-        - n_islas (int): número de islas a generar en el interior del río.
-        - seed (int | None): semilla para el generador aleatorio, para reproducibilidad.
+        - N (int): size of the river board (N x N).
+        - n_islas (int): number of islands to generate inside the river.
+        - seed (int | None): seed for the random generator, for reproducibility.
 
     Returns:
-        - rio (np.ndarray): matriz que representa el tablero del río con sus elementos.
-        - start (tuple[int, int]): posición inicial del agente.
-        - exit_pos (tuple[int, int]): posición de la salida del río.
-        - islas (set[tuple[int, int]]): conjunto de posiciones ocupadas por islas.
-        - river_strength (list[float]): lista con la fuerza de la corriente por columna.
+        - rio (np.ndarray): matrix representing the river board and its elements.
+        - start (tuple[int, int]): starting position of the agent.
+        - exit_pos (tuple[int, int]): position of the river exit.
+        - islas (set[tuple[int, int]]): set of positions occupied by islands.
+        - river_strength (list[float]): list with the current strength per column.
     """
 
     if seed is not None:
         random.seed(seed)
 
     if n_islas > (N - 2) ** 2:
-        raise ValueError("Demasiadas islas para el tamaño del río.")
+        raise ValueError("Too many islands for the size of the river.")
 
     start_row = random.randrange(0,N)
     start_pos = (start_row, 0)
     exit_row = random.randrange(0, N)
     exit_pos = (exit_row, N - 1)
 
-    # Fuerza del río por columnas
+    # River strength per column
     river_strength = []
     for j in range(N):
         if j == 0 or j == N - 1:
@@ -50,7 +50,7 @@ def crear_entorno(N: int = 6, n_islas: int = 2, seed: int | None = None):
 
     rio = np.full((N, N), None, dtype=object)
 
-    # Río solo en columnas interiores
+    # River only in the inner columns
     for j in range(1, N - 1):
         for i in range(N):
             rio[i, j] = "R"
@@ -72,19 +72,19 @@ def crear_entorno(N: int = 6, n_islas: int = 2, seed: int | None = None):
     return rio, start_pos, exit_pos, islas, river_strength
 
 def render_rio(console: Console, rio: np.ndarray, start: tuple, exit_pos: tuple, 
-               islas: set, river_strength: list[float], title="Entorno"):
+               islas: set, river_strength: list[float], title="Environment"):
     """
-    Renderiza en consola el entorno del río, mostrando la posición inicial, la salida,
-    las islas y el cauce del río, junto con la fuerza de la corriente asociada a cada columna.
+    Renders the river environment in the console, showing the starting position, the exit,
+    the islands and the riverbed, along with the current strength of each column.
 
     Args:
-        - console (Console): consola Rich utilizada para mostrar la tabla.
-        - rio (np.ndarray): matriz que representa el tablero del río.
-        - start (tuple[int, int]): posición inicial del agente.
-        - exit_pos (tuple[int, int]): posición de la salida del río.
-        - islas (set[tuple[int, int]]): conjunto de posiciones ocupadas por islas.
-        - river_strength (list[float]): fuerza de la corriente por columna del río.
-        - title (str): título mostrado en la tabla de renderizado.
+        - console (Console): Rich console used to display the table.
+        - rio (np.ndarray): matrix representing the river board.
+        - start (tuple[int, int]): starting position of the agent.
+        - exit_pos (tuple[int, int]): position of the river exit.
+        - islas (set[tuple[int, int]]): set of positions occupied by islands.
+        - river_strength (list[float]): current strength per river column.
+        - title (str): title shown on the rendered table.
     """
 
     N = rio.shape[0]
@@ -109,7 +109,7 @@ def render_rio(console: Console, rio: np.ndarray, start: tuple, exit_pos: tuple,
             elif pos in islas:
                 cell = Text("I", style="bold red")
             else:
-                # río / orilla
+                # river / bank
                 if j == 0 or j == N-1:
                     cell = Text("·", style="dim")
                 else:
@@ -120,19 +120,19 @@ def render_rio(console: Console, rio: np.ndarray, start: tuple, exit_pos: tuple,
 
     console.print(t)
 
-def render_politica(console: Console, rio, start, exit_pos, islas, politica, title="Política óptima"):
+def render_politica(console: Console, rio, start, exit_pos, islas, politica, title="Optimal policy"):
     """
-    Muestra en consola la política óptima sobre el tablero del río mediante flechas,
-    indicando la acción recomendada en cada celda.
+    Displays the optimal policy over the river board using arrows,
+    showing the recommended action in each cell.
 
     Args:
-        - console (Console): consola Rich utilizada para el renderizado.
-        - rio (np.ndarray): matriz que representa el entorno del río.
-        - start (tuple[int, int]): posición inicial del agente.
-        - exit_pos (tuple[int, int]): posición de la salida.
-        - islas (set[tuple[int, int]]): posiciones ocupadas por islas.
-        - politica (dict): política óptima que asigna una acción a cada celda.
-        - title (str): título del panel mostrado.
+        - console (Console): Rich console used for rendering.
+        - rio (np.ndarray): matrix representing the river environment.
+        - start (tuple[int, int]): starting position of the agent.
+        - exit_pos (tuple[int, int]): position of the exit.
+        - islas (set[tuple[int, int]]): positions occupied by islands.
+        - politica (dict): optimal policy mapping each cell to an action.
+        - title (str): title of the displayed panel.
     """
     
     N = rio.shape[0]
@@ -159,12 +159,12 @@ def render_politica(console: Console, rio, start, exit_pos, islas, politica, tit
 
 def crear_estados(rio: np.ndarray):
     """
-    Genera la lista de todos los estados posibles del entorno del río.
+    Generates the list of all possible states of the river environment.
     Args:
-        - rio (np.ndarray): matriz que representa el tablero del río.
+        - rio (np.ndarray): matrix representing the river board.
 
     Returns:
-        - estados (list[tuple[int, int]]): lista de todas las posiciones (i, j) del tablero.
+        - estados (list[tuple[int, int]]): list of every position (i, j) on the board.
     """
 
     N = rio.shape[0]
@@ -172,9 +172,9 @@ def crear_estados(rio: np.ndarray):
 
 def acciones():
     """
-    Devuelve el conjunto de acciones disponibles desde un estado dado.
+    Returns the set of actions available from a given state.
     Returns:
-        - acciones (list[str] | set[str]): acciones permitidas en el entorno.
+        - acciones (list[str] | set[str]): actions allowed in the environment.
     """
     return ACCIONES
 
@@ -185,21 +185,21 @@ def transicion(
     river_strength: list[float]
     ) -> dict[tuple[int, int], float]:
     """
-    Función de transición estocástica del entorno del río.
-    Dado un estado y una acción, devuelve la distribución de probabilidad
-    sobre los posibles estados siguientes, teniendo en cuenta la corriente
-    del río y las celdas bloqueadas (bordes e islas).
+    Stochastic transition function of the river environment.
+    Given a state and an action, returns the probability distribution
+    over the possible next states, taking into account the river current
+    and the blocked cells (edges and islands).
 
     Args:
-        - s (tuple[int, int]): estado actual (posición en el río).
-        - a (str): acción ejecutada ("up", "down", "left", "right" o "stay").
-        - rio (np.ndarray): matriz que representa el entorno del río.
-        - river_strength (list[float]): probabilidad de ser arrastrado hacia abajo
-          por la corriente en cada columna.
+        - s (tuple[int, int]): current state (position in the river).
+        - a (str): action taken ("up", "down", "left", "right" or "stay").
+        - rio (np.ndarray): matrix representing the river environment.
+        - river_strength (list[float]): probability of being dragged down
+          by the current in each column.
 
     Returns:
-        - dist (dict[tuple[int, int], float]): distribución de probabilidad sobre
-          los estados siguientes.
+        - dist (dict[tuple[int, int], float]): probability distribution over
+          the next states.
     """
     i, j = s
     N = rio.shape[0]
@@ -212,7 +212,7 @@ def transicion(
             rio[x, y] == "I"
         )
 
-    # Acción stay
+    # Stay action
     if a == "stay":
         return {s: 1.0}
 
@@ -233,7 +233,7 @@ def transicion(
     elif a == "right":
         s_dir = (i, j + 1)
     else:
-        raise ValueError(f"Acción desconocida: {a}")
+        raise ValueError(f"Unknown action: {a}")
 
     dist = {}
 
@@ -252,18 +252,18 @@ def transicion(
 
 def recompensa(s: tuple[int, int], a: str, s_next: tuple[int, int], rio: np.ndarray) -> int:
     """
-    Función de recompensa del entorno del río.
-    Premia alcanzar la salida, penaliza intentar moverse contra una isla
-    y aplica un coste por cada paso.
+    Reward function of the river environment.
+    Rewards reaching the exit, penalises trying to move into an island
+    and applies a cost for every step.
 
     Args:
-        - s (tuple[int, int]): estado actual (posición en el río).
-        - a (str): acción ejecutada ("up", "down", "left", "right" o "stay").
-        - s_next (tuple[int, int]): estado siguiente tras aplicar la acción.
-        - rio (np.ndarray): matriz que representa el entorno del río.
+        - s (tuple[int, int]): current state (position in the river).
+        - a (str): action taken ("up", "down", "left", "right" or "stay").
+        - s_next (tuple[int, int]): next state after applying the action.
+        - rio (np.ndarray): matrix representing the river environment.
 
     Returns:
-        - recompensa (int): valor de la recompensa
+        - recompensa (int): reward value
     """
 
     i2, j2 = s_next
@@ -271,7 +271,7 @@ def recompensa(s: tuple[int, int], a: str, s_next: tuple[int, int], rio: np.ndar
     if rio[i2, j2] == "E":
         return 100
 
-    if a != "stay" and s_next == s:  #detecto que quería moverme y no he podido. Puede ser por isla o por salirse del tablero
+    if a != "stay" and s_next == s:  #detect that I tried to move and could not. It may be due to an island or to leaving the board
         N = rio.shape[0]
         i, j = s
         if a == "up":
@@ -294,18 +294,18 @@ def recompensa(s: tuple[int, int], a: str, s_next: tuple[int, int], rio: np.ndar
 
 def value_iteration(estados: list, rio: np.ndarray, river_strength: list[float], gamma: float=0.9, epsilon: float=1e-6) -> dict:
     """
-    Aplica el algoritmo de value iteration para calcular el valor
-    óptimo de todos los estados del río.
+    Applies the value iteration algorithm to compute the optimal
+    value of every river state.
 
     Args:
-        - estados (list[tuple[int, int]]): lista de todos los estados posibles.
-        - rio (np.ndarray): matriz que representa el entorno del río.
-        - river_strength (list[float]): fuerza de la corriente por columna.
-        - gamma (float): factor de descuento.
-        - epsilon (float): umbral de convergencia.
+        - estados (list[tuple[int, int]]): list of all possible states.
+        - rio (np.ndarray): matrix representing the river environment.
+        - river_strength (list[float]): current strength per column.
+        - gamma (float): discount factor.
+        - epsilon (float): convergence threshold.
 
     Returns:
-        - V (dict): función de valor óptima para cada estado.
+        - V (dict): optimal value function for each state.
     """
 
 
@@ -330,25 +330,25 @@ def value_iteration(estados: list, rio: np.ndarray, river_strength: list[float],
             delta = max(delta, abs(mejor_valor - V[s]))
             V[s] = mejor_valor
 
-        if delta < epsilon: #el cambio ya es despreciable (o directamente no existe)
+        if delta < epsilon: #the change is now negligible (or nonexistent)
             break
 
     return V
 
 def extraer_politica(estados: list, V: dict, rio: np.ndarray, river_strength: list[float], gamma: float=0.9) -> dict:
     """
-    Extrae la política óptima a partir de una función de valor ya calculada,
-    eligiendo en cada estado la acción que maximiza el valor esperado.
+    Extracts the optimal policy from an already computed value function,
+    choosing in each state the action that maximises the expected value.
 
     Args:
-        - estados (list[tuple[int, int]]): lista de todos los estados posibles.
-        - V (dict): función de valor de los estados.
-        - rio (np.ndarray): matriz que representa el entorno del río.
-        - river_strength (list[float]): fuerza de la corriente por columna.
-        - gamma (float): factor de descuento.
+        - estados (list[tuple[int, int]]): list of all possible states.
+        - V (dict): state value function.
+        - rio (np.ndarray): matrix representing the river environment.
+        - river_strength (list[float]): current strength per column.
+        - gamma (float): discount factor.
 
     Returns:
-        - politica (dict): política óptima que asigna una acción a cada estado.
+        - politica (dict): optimal policy mapping each state to an action.
     """
     politica = {}
 
@@ -373,15 +373,15 @@ def extraer_politica(estados: list, V: dict, rio: np.ndarray, river_strength: li
 
 def muestrear_siguiente(dist: dict[tuple[int, int], float]) -> tuple[int, int]:
     """
-    Muestra aleatoriamente un estado siguiente a partir de una distribución
-    de probabilidad discreta. También conocido como roulette wheel selection.
+    Randomly samples a next state from a discrete probability
+    distribution. Also known as roulette wheel selection.
 
     Args:
-        - dist (dict[tuple[int, int], float]): distribución de probabilidad sobre
-          los posibles estados siguientes.
+        - dist (dict[tuple[int, int], float]): probability distribution over
+          the possible next states.
 
     Returns:
-        - s_next (tuple[int, int]): estado siguiente muestreado según la distribución.
+        - s_next (tuple[int, int]): next state sampled from the distribution.
     """
     r = random.random()
     acumulado = 0.0
@@ -402,23 +402,23 @@ def simular_partidas(
     console: bool = None
     ):
     """
-    Simula una o varias partidas siguiendo una política fija en el entorno del río,
-    acumulando estadísticas de éxito, pasos y recompensa total.
+    Simulates one or more games following a fixed policy in the river environment,
+    collecting statistics on success, steps and total reward.
 
     Args:
-        - politica (dict): política que asigna una acción a cada estado.
-        - rio (np.ndarray): matriz que representa el entorno del río.
-        - river_strength (list[float]): fuerza de la corriente por columna.
-        - start (tuple[int, int]): estado inicial de cada partida.
-        - n_partidas (int): número de partidas a simular.
-        - max_pasos (int): número máximo de pasos por partida.
-        - paso_a_paso (bool): si True, muestra la simulación paso a paso.
-        - console (Console | None): consola Rich para el modo paso a paso.
+        - politica (dict): policy mapping each state to an action.
+        - rio (np.ndarray): matrix representing the river environment.
+        - river_strength (list[float]): current strength per column.
+        - start (tuple[int, int]): initial state of each game.
+        - n_partidas (int): number of games to simulate.
+        - max_pasos (int): maximum number of steps per game.
+        - paso_a_paso (bool): if True, shows the simulation step by step.
+        - console (Console | None): Rich console for the step-by-step mode.
 
     Returns:
-        - victorias (int): número de partidas en las que se alcanza la salida.
-        - pasos (list[int]): lista con el número de pasos de cada partida.
-        - recompensas (list[int]): lista con la recompensa total de cada partida.
+        - victorias (int): number of games in which the exit is reached.
+        - pasos (list[int]): list with the number of steps of each game.
+        - recompensas (list[int]): list with the total reward of each game.
     """
 
 
@@ -450,14 +450,14 @@ def simular_partidas(
 
             if paso_a_paso and n_partidas == 1 and console is not None:
                 console.print(
-                    f"[dim]Paso {num_pasos}[/dim]  "
-                    f"estado={estado}  "
-                    f"acción=[bold]{accion}[/bold]  "
+                    f"[dim]Step {num_pasos}[/dim]  "
+                    f"state={estado}  "
+                    f"action=[bold]{accion}[/bold]  "
                     f"r={r_paso}  "
                     f"R={recompensa_total}"
                 )
 
-        # Comprobación final
+        # Final check
         if not exito:
             i, j = estado
             if rio[i, j] == "E":
@@ -467,7 +467,7 @@ def simular_partidas(
         pasos.append(num_pasos)
         recompensas.append(recompensa_total)
 
-        # El modo paso a paso solo tiene sentido para una partida
+        # Step-by-step mode only makes sense for a single game
         if paso_a_paso and n_partidas != 1:
             paso_a_paso = False
 
@@ -475,35 +475,35 @@ def simular_partidas(
 
 def main():
     """
-    Función de flujo principal
+    Main program flow
     """
     console = Console()
 
     seed = 42
 
     while True:
-        # 1) Crear entorno
+        # 1) Create the environment
         rio, start, exit_pos, islas, river_strength = crear_entorno(seed=seed)
 
-        # 2) Resolver con Value Iteration
+        # 2) Solve with Value Iteration
         estados = crear_estados(rio)
         V = value_iteration(estados, rio, river_strength)
         politica = extraer_politica(estados, V, rio, river_strength)
 
         console.clear()
-        console.print(Panel.fit(f"RÍO MDP | seed={seed}", border_style="cyan"))
+        console.print(Panel.fit(f"RIVER MDP | seed={seed}", border_style="cyan"))
 
-        console.print("[bold]Entorno:[/bold]")
+        console.print("[bold]Environment:[/bold]")
         render_rio(console, rio, start, exit_pos, islas, river_strength)
         render_politica(console, rio, start, exit_pos, islas, politica)
 
-        console.print("\n[bold cyan]Opciones[/bold cyan]")
-        console.print("1) Simular 1 partida (paso a paso)")
-        console.print("2) Simular N partidas (estadísticas)")
-        console.print("3) Cambiar seed")
-        console.print("4) Salir")
+        console.print("\n[bold cyan]Options[/bold cyan]")
+        console.print("1) Simulate 1 game (step by step)")
+        console.print("2) Simulate N games (statistics)")
+        console.print("3) Change seed")
+        console.print("4) Quit")
 
-        op = Prompt.ask("Elige", choices=["1", "2", "3", "4"], default="2")
+        op = Prompt.ask("Choose", choices=["1", "2", "3", "4"], default="2")
 
         if op == "1":
             console.print()
@@ -515,15 +515,15 @@ def main():
 
             ok = (victorias == 1)
             console.print(Panel.fit(
-                f"Resultado: {'LLEGA' if ok else 'NO LLEGA'}\n"
-                f"Pasos: {pasos[0]}\n"
-                f"Recompensa total: {recompensas[0]}",  
+                f"Result: {'REACHED' if ok else 'NOT REACHED'}\n"
+                f"Steps: {pasos[0]}\n"
+                f"Total reward: {recompensas[0]}",  
                 border_style="green" if ok else "red"
             ))
-            Prompt.ask("ENTER para continuar", default="")
+            Prompt.ask("Press ENTER to continue", default="")
 
         elif op == "2":
-            n = IntPrompt.ask("¿Cuántas partidas quieres simular?", default=100)
+            n = IntPrompt.ask("How many games do you want to simulate?", default=100)
 
             victorias, pasos, recompensas = simular_partidas(
                 politica, rio, river_strength, start,
@@ -534,19 +534,19 @@ def main():
             pasos_medios = sum(pasos) / n
             recompensa_media = sum(recompensas) / n
 
-            t = Table(title="Resumen simulaciones", show_header=True, header_style="bold cyan")
+            t = Table(title="Simulation summary", show_header=True, header_style="bold cyan")
             t.add_column("N", justify="right")
-            t.add_column("Éxitos", justify="right")
-            t.add_column("Tasa éxito", justify="right")
-            t.add_column("Pasos medios", justify="right")
-            t.add_column("Recompensa media", justify="right")
+            t.add_column("Successes", justify="right")
+            t.add_column("Success rate", justify="right")
+            t.add_column("Mean steps", justify="right")
+            t.add_column("Mean reward", justify="right")
 
             t.add_row(str(n), str(victorias), f"{tasa:.1f}%", f"{pasos_medios:.2f}", f"{recompensa_media:.2f}")
             console.print(t)
-            Prompt.ask("ENTER para continuar", default="")
+            Prompt.ask("Press ENTER to continue", default="")
 
         elif op == "3":
-            seed = IntPrompt.ask("Nueva seed", default=seed)
+            seed = IntPrompt.ask("New seed", default=seed)
 
         elif op == "4":
             break
